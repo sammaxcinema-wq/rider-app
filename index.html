@@ -4,218 +4,1052 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>SwiftDash | Premium Delivery Ecosystem</title>
-  <!-- Google Fonts + Tailwind + Font Awesome + Leaflet + Chart.js -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#FF5A1E',
+              hover: '#E04810',
+              surface: '#121216',
+              bg: '#060608',
+              card: '#181822'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
   <style>
-    * { font-family: 'Inter', sans-serif; }
-    body { background: #050505; margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    /* responsive container – works on mobile & PC */
-    .app-container {
-      max-width: 1400px;
-      width: 100%;
-      margin: 0 auto;
-      background: #0D0D0D;
-      border-radius: 2rem;
-      box-shadow: 0 25px 45px -12px black;
-      border: 1px solid rgba(255,90,30,0.2);
-      overflow: hidden;
-      transition: all 0.2s;
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #060608;
+      color: #F3F4F6;
+      -webkit-tap-highlight-color: transparent;
     }
-    @media (min-width: 1024px) {
-      .app-container { min-height: 85vh; }
-      .dashboard-grid { display: grid; grid-template-columns: 280px 1fr; gap: 1rem; }
+    .glass-surface {
+      background: rgba(24, 24, 34, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 90, 30, 0.15);
     }
-    .glass-card { background: rgba(20,20,30,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,90,30,0.2); border-radius: 1.5rem; }
-    .btn-primary { background: linear-gradient(95deg, #FF5A1E, #FF8C42); transition: all 0.2s; }
-    .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(255,90,30,0.4); }
-    .text-gradient { background: linear-gradient(135deg, #FF8C42, #FF5A1E); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .scrollable { overflow-y: auto; scrollbar-width: thin; }
-    .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #22c55e; animation: pulse 1.5s infinite; display: inline-block; }
-    @keyframes pulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
-    .leaflet-container { background: #12121C; border-radius: 24px; }
-    input, button { transition: all 0.2s; }
-    .toast-notify { position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 400px; margin: 0 auto; background: #1f1f2e; border-left: 4px solid #FF5A1E; padding: 12px 20px; border-radius: 60px; color: white; z-index: 9999; backdrop-filter: blur(12px); animation: fadeUp 0.3s; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .glass-surface-interactive {
+      background: rgba(24, 24, 34, 0.4);
+      border: 1px solid rgba(255, 90, 30, 0.1);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .glass-surface-interactive:hover {
+      background: rgba(24, 24, 34, 0.7);
+      border: 1px solid rgba(255, 90, 30, 0.3);
+      transform: translateY(-2px);
+    }
+    .text-gradient {
+      background: linear-gradient(135deg, #FFF 30%, #FF5A1E 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Map customization */
+    .leaflet-vignette {
+      box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+    }
   </style>
 </head>
-<body>
-<div id="root" class="app-container"></div>
+<body class="min-h-screen flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8">
 
-<script>
-  // ------------------- ULTRA PRO STATE + PERSISTENCE -------------------
-  let currentScreen = 'splash';
-  let activeChart = null;
-  let mapTrack = null;
-  let trackInterval = null;
-  let trackMarker = null;
+  <div id="root" class="w-full h-screen sm:h-[85vh] lg:h-[90vh] max-w-[1600px] bg-brand-bg sm:rounded-3xl shadow-[0_0_80px_rgba(0,0,0,0.8)] border-0 sm:border border-white/5 overflow-hidden relative"></div>
 
-  // Data models
-  let appState = {
-    users: [],               // { phone, name, role, wallet, avatar, riderStats, vendorProducts, ... }
-    activeUser: null,
-    orders: [],             // dynamic orders
-    products: [],           // vendor products (global, per vendor)
-    vehicles: [],           // fleet
-    nextOrderId: 100,
-    nextProductId: 200,
-  };
+  <script>
+    // ------------------- APPLICATION ARCHITECTURE STATE -------------------
+    let currentScreen = 'splash';
+    let activeChart = null;
+    let mapInstance = null;
+    let trackingInterval = null;
+    let liveMarker = null;
 
-  // ---------- Helper: localStorage load/save ----------
-  function loadPersistedState() {
-    try {
-      const saved = localStorage.getItem('swiftdash_state');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        appState = { ...appState, ...parsed };
-        if (!appState.users) appState.users = [];
-        if (!appState.orders) appState.orders = [];
-        if (!appState.products) appState.products = [];
-        if (!appState.vehicles) appState.vehicles = [];
-      } else {
-        // seed demo data
-        seedDemoData();
+    let appState = {
+      users: [],
+      activeUser: null,
+      orders: [],
+      products: [],
+      nextOrderId: 100,
+      nextProductId: 200,
+      systemMetrics: { totalVolume: 184500, dynamicRidersCount: 42 }
+    };
+
+    // ------------------- CORE PERSISTENCE LAYER -------------------
+    function loadState() {
+      try {
+        const saved = localStorage.getItem('swiftdash_core_state');
+        if (saved) {
+          appState = JSON.parse(saved);
+        } else {
+          seedSystemData();
+        }
+      } catch (e) {
+        seedSystemData();
       }
-    } catch(e) { seedDemoData(); }
-  }
-  function persistState() {
-    const toStore = { users: appState.users, activeUser: appState.activeUser, orders: appState.orders, products: appState.products, vehicles: appState.vehicles, nextOrderId: appState.nextOrderId, nextProductId: appState.nextProductId };
-    localStorage.setItem('swiftdash_state', JSON.stringify(toStore));
-  }
-  function seedDemoData() {
-    appState.users = [
-      { phone: '+254712345678', name: 'James Mwangi', role: 'CUSTOMER', wallet: 5600, avatar: '👨‍🍳', riderStats: null, vendorProducts: null },
-      { phone: '+254711222333', name: 'Rider Mike', role: 'RIDER', wallet: 2450, avatar: '🏍️', riderStats: { battery: 92, engineHealth: 88, rangeKm: 58, totalKm: 4780, todayEarnings: 3250, deliveriesToday: 14, rating: 4.96, performance: 97 }, vendorProducts: null },
-      { phone: '+254700123456', name: 'Mama Jane', role: 'VENDOR', wallet: 12200, avatar: '🍲', vendorProducts: [{ id: 201, name: 'Ugali + Sukuma', price: 180, sold: 32 }, { id: 202, name: 'Grilled Chicken', price: 450, sold: 18 }], riderStats: null }
-    ];
-    appState.orders = [
-      { id: 101, customerPhone: '+254712345678', vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Ugali + Chicken', total: 630, status: 'in_transit', riderPhone: '+254711222333', eta: '6 min', createdAt: Date.now() - 3600000 },
-      { id: 102, customerPhone: '+254712345678', vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Grilled Chicken', total: 450, status: 'delivered', riderPhone: null, eta: null, createdAt: Date.now() - 86400000 }
-    ];
-    appState.products = [
-      { id: 201, vendorPhone: '+254700123456', name: 'Ugali + Sukuma', price: 180, stock: 20 },
-      { id: 202, vendorPhone: '+254700123456', name: 'Grilled Chicken', price: 450, stock: 12 },
-    ];
-    appState.vehicles = [{ id: 'V1', name: 'EV Bike 01', status: 'active', lastMaintenance: '2025-04-01' }];
-    appState.nextOrderId = 103;
-    appState.nextProductId = 203;
-    persistState();
-  }
+    }
 
-  // helper: get current user obj
-  function getUser() { return appState.activeUser ? appState.users.find(u => u.phone === appState.activeUser.phone) : null; }
-  function setActiveUser(user) { appState.activeUser = user; persistState(); }
-  function updateUser(updated) { const idx = appState.users.findIndex(u => u.phone === updated.phone); if(idx!==-1) appState.users[idx]=updated; persistState(); }
-  function showToast(msg, isErr=false) { const toast = document.createElement('div'); toast.className = 'toast-notify'; toast.innerHTML = `<i class="fas ${isErr?'fa-exclamation-triangle':'fa-check-circle'} mr-2 text-orange-400"></i> ${msg}`; document.body.appendChild(toast); setTimeout(()=>toast.remove(), 2800); }
+    function saveState() {
+      localStorage.setItem('swiftdash_core_state', JSON.stringify(appState));
+    }
 
-  // cleanup tracking
-  function cleanupTracking() { if(trackInterval){clearInterval(trackInterval);trackInterval=null;} if(mapTrack){mapTrack.remove();mapTrack=null;} if(activeChart){activeChart.destroy();activeChart=null;} }
+    function seedSystemData() {
+      appState.users = [
+        { phone: '+254712345678', name: 'James Mwangi', role: 'CUSTOMER', wallet: 7500, avatar: '👨‍💻' },
+        { phone: '+254711222333', name: 'Rider Mike', role: 'RIDER', wallet: 3900, avatar: '🏍️', riderOnline: true, riderStats: { battery: 94, engineHealth: 98, rangeKm: 62, deliveriesToday: 14, rating: 4.95 } },
+        { phone: '+254700123456', name: 'Mama Jane Kitchen', role: 'VENDOR', wallet: 24300, avatar: '🍲' }
+      ];
+      appState.products = [
+        { id: 201, vendorPhone: '+254700123456', name: 'Beef Pilau Premium', price: 350 },
+        { id: 202, vendorPhone: '+254700123456', name: 'Grilled Choma Chicken', price: 580 },
+        { id: 203, vendorPhone: '+254700123456', name: 'Fresh Matoke Bowl', price: 250 }
+      ];
+      appState.orders = [
+        { id: 101, customerPhone: '+254712345678', vendorId: '+254700123456', vendorName: 'Mama Jane Kitchen', items: 'Beef Pilau Premium x2', total: 700, status: 'in_transit', riderPhone: '+254711222333', eta: '8 min', lat: -1.2921, lng: 36.8219 }
+      ];
+      appState.nextOrderId = 102;
+      appState.nextProductId = 204;
+      saveState();
+    }
 
-  // render engine
-  function render() {
-    const root = document.getElementById('root');
-    if (!root) return;
-    let html = '';
-    if (currentScreen === 'splash') html = splashScreen();
-    else if (currentScreen === 'login') html = loginScreen();
-    else if (currentScreen === 'otp') html = otpScreen();
-    else if (currentScreen === 'profile') html = profileScreen();
-    else if (currentScreen === 'role') html = roleScreen();
-    else if (currentScreen === 'customer') html = customerDashboard();
-    else if (currentScreen === 'rider') html = riderDashboard();
-    else if (currentScreen === 'vendor') html = vendorDashboard();
-    else if (currentScreen === 'fleet') html = fleetDashboard();
-    else if (currentScreen === 'admin') html = adminDashboard();
-    else if (currentScreen === 'tracking') html = trackingScreen();
-    else html = splashScreen();
-    root.innerHTML = html;
-    attachGlobalListeners();
-    if (currentScreen === 'admin') initAdminChart();
-    if (currentScreen === 'vendor' && getUser()?.role === 'VENDOR') initVendorChart();
-    if (currentScreen === 'tracking') initTrackingMap();
-  }
+    // ------------------- APPLICATION LAYOUT STRATEGIES -------------------
+    function getLayoutWrapper(mainContent, activeTabId) {
+      const u = appState.activeUser;
+      const links = {
+        CUSTOMER: [
+          { id: 'customer', icon: 'fa-compass', label: 'Explore' },
+          { id: 'wallet_view', icon: 'fa-wallet', label: 'Wallet' }
+        ],
+        RIDER: [
+          { id: 'rider', icon: 'fa-motorcycle', label: 'Console' }
+        ],
+        VENDOR: [
+          { id: 'vendor', icon: 'fa-store', label: 'Store Management' }
+        ],
+        ADMIN: [
+          { id: 'admin', icon: 'fa-chart-pie', label: 'Cortex' }
+        ]
+      }[u.role] || [];
 
-  // ----- UI Screens (Premium) -----
-  function splashScreen() { return `<div class="h-[90vh] flex flex-col items-center justify-center bg-gradient-to-b from-[#0F0F13] to-black"><div class="animate-bounce text-7xl mb-4">🛵⚡</div><h1 class="text-5xl font-black text-gradient">SwiftDash</h1><p class="text-gray-400 mt-2">Kenya’s #1 Delivery Suite</p><div class="absolute bottom-12 w-16 h-16 rounded-full glass-card flex items-center justify-center animate-pulse"><i class="fas fa-bolt text-orange-500 text-2xl"></i></div></div>`; }
-  function loginScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8 rounded-3xl"><div class="flex justify-center mb-4"><i class="fas fa-mobile-alt text-5xl text-orange-500"></i></div><h2 class="text-3xl font-bold text-center">Welcome Back</h2><p class="text-gray-400 text-center">Login with your phone</p><div class="mt-6 bg-black/40 rounded-2xl border border-white/10 flex items-center"><i class="fas fa-phone-alt ml-3 text-orange-400"></i><input id="phoneInput" class="bg-transparent p-3 w-full outline-none text-white" placeholder="+254 XXX XXX XXX" value="+254712345678"></div><button id="sendOtpBtn" class="btn-primary w-full mt-6 text-white font-bold py-3 rounded-2xl">Send OTP</button><p class="text-center text-gray-400 text-sm mt-4">New? Register with same OTP flow</p></div></div>`; }
-  function otpScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8"><h2 class="text-2xl font-bold">OTP Code</h2><p class="text-gray-400">Enter 6-digit code sent to <span class="text-orange-400">${document.getElementById('phoneInput')?.value || '+254712345678'}</span></p><div class="flex justify-between gap-2 my-6" id="otpContainer">${Array(6).fill(0).map((_,i)=>`<input type="text" maxlength="1" class="otp-digit w-12 h-14 text-center text-2xl bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 outline-none" data-idx="${i}">`).join('')}</div><button id="verifyOtpBtn" class="btn-primary w-full py-3 rounded-2xl">Verify & Continue</button><p class="text-center text-gray-400 text-sm mt-3">Demo OTP: 123456</p></div></div>`; }
-  function profileScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8"><h2 class="text-2xl font-bold">✨ Almost there</h2><p class="text-gray-400">What should we call you?</p><input id="profileName" class="w-full mt-4 bg-black/50 border border-white/20 rounded-xl p-3 text-white" placeholder="Full name" value=""><button id="profileContinueBtn" class="btn-primary w-full mt-6 py-3 rounded-2xl">Continue</button></div></div>`; }
-  function roleScreen() { const roles = [{ id: 'CUSTOMER', icon: 'fa-bag-shopping', label: 'Customer', desc: 'Order food & parcels' },{ id: 'RIDER', icon: 'fa-motorcycle', label: 'Rider', desc: 'Earn per delivery' },{ id: 'VENDOR', icon: 'fa-store', label: 'Vendor', desc: 'Manage store' },{ id: 'FLEET_MANAGER', icon: 'fa-truck-fast', label: 'Fleet Manager', desc: 'Oversee fleet' },{ id: 'ADMIN', icon: 'fa-chart-line', label: 'Admin', desc: 'Analytics & control' }]; return `<div class="p-6"><h2 class="text-3xl font-bold text-center mt-2">Select your role</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 max-w-4xl mx-auto">${roles.map(r=>`<button data-role="${r.id}" class="role-btn glass-card flex items-center gap-4 w-full p-5 hover:border-orange-500 transition-all"><i class="fas ${r.icon} text-3xl text-orange-500"></i><div><div class="font-bold text-xl">${r.label}</div><div class="text-gray-400 text-sm">${r.desc}</div></div></button>`).join('')}</div></div>`; }
+      return `
+        <div class="w-full h-full flex flex-col md:flex-row bg-brand-bg text-gray-200">
+          <aside class="hidden md:flex flex-col w-72 bg-brand-surface border-r border-white/5 p-6 justify-between shrink-0">
+            <div>
+              <div class="flex items-center gap-3 px-2 py-4 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand to-orange-400 flex items-center justify-center text-white font-black shadow-lg shadow-brand/20">S</div>
+                <div>
+                  <h2 class="font-bold tracking-tight text-white">SwiftDash</h2>
+                  <p class="text-xs text-brand font-medium tracking-widest uppercase">Ecosystem v2.4</p>
+                </div>
+              </div>
+              
+              <nav class="space-y-1">
+                ${links.map(l => `
+                  <button data-screen="${l.id}" class="w-full flex items-center gap-4 px-4 py-3 rounded-xl font-medium text-sm transition-all ${activeTabId === l.id ? 'bg-brand text-white shadow-lg shadow-brand/10' : 'text-gray-400 hover:bg-white/5 hover:text-white'}">
+                    <i class="fas ${l.icon} text-lg"></i> ${l.label}
+                  </button>
+                `).join('')}
+              </nav>
+            </div>
 
-  // ================= DASHBOARDS ULTRA PRO =================
-  function customerDashboard() {
-    const user = getUser();
-    const myOrders = appState.orders.filter(o => o.customerPhone === user?.phone).slice(0,5);
-    return `<div class="dashboard-grid"><div class="glass-card m-4 p-5 hidden lg:block"><div class="text-center"><i class="fas fa-user-circle text-6xl text-orange-400"></i><h3 class="text-xl font-bold mt-2">${user?.name}</h3><p class="text-gray-400">${user?.phone}</p><button id="logoutMainBtn" class="mt-4 bg-white/10 px-4 py-2 rounded-full w-full">Logout</button></div></div><div class="p-5"><div class="flex justify-between items-center"><h1 class="text-3xl font-bold text-gradient">Hey, ${user?.name?.split(' ')[0] || 'Customer'}!</h1><i class="fas fa-bell text-orange-400 text-xl"></i></div><div class="grid md:grid-cols-2 gap-4 mt-4"><div class="glass-card p-5"><i class="fas fa-wallet text-2xl"></i><p class="text-sm">Wallet</p><p class="text-2xl font-bold">KES ${user?.wallet?.toLocaleString()}</p><button id="topupWalletBtn" class="text-orange-400 text-sm mt-2"><i class="fas fa-mobile-alt"></i> M-PESA TopUp</button></div><div class="glass-card p-5"><i class="fas fa-truck-fast text-2xl"></i><p class="text-sm">Active deliveries</p><p class="text-2xl font-bold">${appState.orders.filter(o=>o.customerPhone===user?.phone && o.status==='in_transit').length}</p><button id="newOrderBtn" class="btn-primary text-sm px-4 py-1 rounded-full mt-2">+ New Order</button></div></div><div class="glass-card p-5 mt-4"><h3 class="font-bold text-xl">📦 Recent Orders</h3>${myOrders.length ? myOrders.map(o=>`<div class="flex justify-between items-center border-b border-white/10 py-2"><div><p class="font-medium">${o.vendorName}</p><p class="text-xs text-gray-400">${o.status === 'in_transit' ? `🚚 ETA ${o.eta}` : '✅ Delivered'}</p></div><span class="text-orange-400 font-bold">KES ${o.total}</span></div>`).join('') : '<p class="text-gray-400 text-center py-4">No orders yet. Tap "New Order"</p>'}</div><button id="logoutCustomerBtn" class="lg:hidden bg-white/10 py-3 rounded-full w-full mt-4">Logout</button></div></div>`;
-  }
-  function riderDashboard() {
-    const user = getUser();
-    const stats = user?.riderStats || { battery: 96, engineHealth: 91, rangeKm: 65, todayEarnings: 3250, deliveriesToday: 8, rating: 4.92, performance: 93 };
-    const online = user?.riderOnline !== undefined ? user.riderOnline : true;
-    const incomingOrders = appState.orders.filter(o => o.status === 'pending' && !o.riderPhone);
-    return `<div class="p-5"><div class="glass-card p-5 relative"><div class="flex justify-between"><h2 class="text-2xl font-bold">🏍️ ${user?.name}</h2><button id="riderOnlineToggle" class="px-4 py-1 rounded-full text-sm font-bold ${online ? 'bg-green-500' : 'bg-gray-600'}">${online ? '● Online' : '○ Offline'}</button></div><div class="grid grid-cols-3 gap-3 mt-4"><div><i class="fas fa-battery-full"></i><p class="text-lg font-bold">${stats.battery}%</p><p class="text-xs">Battery</p></div><div><i class="fas fa-heartbeat"></i><p class="text-lg">${stats.engineHealth}%</p></div><div><i class="fas fa-road"></i><p>${stats.rangeKm} km</p></div></div><div class="glass-card mt-3 p-3"><div class="flex justify-between"><span>Today's earnings</span><span class="text-2xl text-gradient">KES ${stats.todayEarnings}</span></div><div class="flex justify-between text-sm"><span>⭐ ${stats.rating}</span><span>📦 ${stats.deliveriesToday} deliveries</span></div></div><h3 class="font-bold mt-4">📋 Available orders</h3><div id="incomingOrdersList" class="space-y-2 mt-2 max-h-52 overflow-auto">${incomingOrders.length ? incomingOrders.map(o=>`<div class="bg-white/5 p-3 rounded-xl flex justify-between items-center"><div><p class="font-bold">${o.vendorName}</p><p class="text-xs">KES ${o.total}</p></div><button data-order-id="${o.id}" class="acceptOrderBtn bg-orange-500 text-xs px-3 py-1 rounded-full">Accept</button></div>`).join('') : '<p class="text-gray-400 text-center">No pending orders</p>'}</div><button id="logoutRiderBtn" class="bg-white/10 py-2 rounded-full w-full mt-4">Logout</button></div></div>`;
-  }
-  function vendorDashboard() {
-    const user = getUser();
-    const myProducts = appState.products.filter(p => p.vendorPhone === user?.phone);
-    const vendorOrders = appState.orders.filter(o => o.vendorId === user?.phone);
-    return `<div class="p-5"><div class="glass-card p-5"><h2 class="text-2xl font-bold">🍲 ${user?.name}'s Hub</h2><div class="grid md:grid-cols-2 gap-4 mt-4"><div><h3>📦 Your Products</h3><ul id="productList" class="space-y-2">${myProducts.map(p=>`<li class="flex justify-between"><span>${p.name} - KES ${p.price}</span><button data-prod="${p.id}" class="delProductBtn text-red-400 text-xs">🗑️</button></li>`).join('')}</ul><div class="flex gap-2 mt-3"><input id="newProdName" placeholder="Product" class="bg-black/40 p-2 rounded text-sm"><input id="newProdPrice" placeholder="Price" class="bg-black/40 p-2 rounded text-sm w-20"><button id="addProductBtn" class="btn-primary text-sm px-3 py-1">Add</button></div></div><div><h3>📝 Store Orders</h3>${vendorOrders.map(o=>`<div class="bg-white/5 p-2 rounded mt-1"><span>Order #${o.id} - ${o.items}</span><span class="float-right">${o.status}</span></div>`).join('')}</div></div><button id="logoutVendorBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
-  }
-  function fleetDashboard() {
-    return `<div class="p-5"><div class="glass-card p-5"><h2>⚡ Fleet Command Center</h2><div class="grid grid-cols-2 gap-3 mt-4"><div class="bg-orange-500/10 p-3 rounded"><i class="fas fa-motorcycle"></i> Active Riders: 14</div><div class="bg-orange-500/10 p-3 rounded"><i class="fas fa-charging-station"></i> EVs Active: 8</div></div><div class="mt-4"><h3>Vehicles Status</h3>${appState.vehicles.map(v=>`<div class="flex justify-between"><span>${v.name}</span><span class="${v.status==='active'?'text-green-400':'text-red-400'}">${v.status}</span></div>`).join('')}</div><button id="logoutFleetBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
-  }
-  function adminDashboard() {
-    const totalRev = appState.orders.reduce((acc,o)=> o.status==='delivered' ? acc+o.total : acc, 0);
-    const activeRiders = appState.users.filter(u=>u.role==='RIDER' && u.riderOnline).length;
-    return `<div class="p-5"><div class="glass-card p-5"><h1 class="text-3xl font-bold text-gradient">📊 Admin Cortex</h1><div class="grid md:grid-cols-3 gap-3 mt-4"><div class="bg-black/30 p-4 rounded-2xl"><p>Total Revenue</p><p class="text-2xl font-bold">KES ${totalRev.toLocaleString()}</p></div><div class="bg-black/30 p-4 rounded-2xl"><p>Active Riders</p><p class="text-2xl font-bold">${activeRiders}</p></div><div class="bg-black/30 p-4 rounded-2xl"><p>Total Orders</p><p class="text-2xl">${appState.orders.length}</p></div></div><canvas id="revenueChart" height="140" class="mt-4"></canvas><button id="logoutAdminBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
-  }
-  function trackingScreen() {
-    return `<div class="relative h-[85vh] flex flex-col"><div id="trackingMapDiv" class="flex-1 w-full" style="min-height: 65%;"></div><div class="glass-card m-4 p-4 flex justify-between"><div><p class="text-sm">🍔 Your rider is on the way</p><p class="text-2xl font-bold" id="etaLabel">4 min</p></div><button id="chatBtn" class="bg-orange-500 px-5 py-2 rounded-full"><i class="fas fa-comment"></i> Chat</button></div><button id="backFromTracking" class="absolute top-4 left-4 bg-black/60 p-2 rounded-full backdrop-blur"><i class="fas fa-arrow-left"></i> Back</button></div>`;
-  }
+            <div class="bg-brand-card/60 p-4 rounded-2xl border border-white/5 flex items-center gap-3">
+              <span class="text-2xl">${u.avatar || '👤'}</span>
+              <div class="flex-1 min-w-0">
+                <h4 class="text-sm font-semibold text-white truncate">${u.name}</h4>
+                <p class="text-xs text-gray-400 truncate uppercase tracking-wider">${u.role}</p>
+              </div>
+              <button id="systemLogoutBtn" class="w-8 h-8 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors flex items-center justify-center">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
+            </div>
+          </aside>
 
-  // Charts & Map
-  function initAdminChart() { const canvas = document.getElementById('revenueChart'); if(!canvas)return; if(activeChart)activeChart.destroy(); const ctx = canvas.getContext('2d'); activeChart = new Chart(ctx,{type:'line', data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat'], datasets:[{label:'Revenue (KES)', data:[14500,21200,18900,27300,34200,41900], borderColor:'#FF5A1E',borderWidth:3}]}, options:{responsive:true}}); }
-  function initVendorChart() { const canvas = document.getElementById('vendorChart'); if(!canvas)return; if(activeChart)activeChart.destroy(); const ctx = canvas.getContext('2d'); activeChart = new Chart(ctx,{type:'bar', data:{labels:['Week1','Week2','Week3'], datasets:[{label:'Sales (KES)', data:[43200,52100,48900], backgroundColor:'#FF5A1E'}]}}); }
-  function initTrackingMap() {
-    const mapDiv = document.getElementById('trackingMapDiv'); if(!mapDiv) return; if(mapTrack) mapTrack.remove();
-    mapTrack = L.map(mapDiv).setView([-1.2921, 36.8219], 13); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap'}).addTo(mapTrack);
-    const customIcon = L.divIcon({html:'<div class="bg-orange-500 w-6 h-6 rounded-full animate-pulse shadow-lg border-2 border-white"></div>', iconSize:[24,24]});
-    trackMarker = L.marker([-1.2921,36.8219],{icon:customIcon}).addTo(mapTrack);
-    let lat=-1.2921, lng=36.8219; if(trackInterval) clearInterval(trackInterval);
-    trackInterval = setInterval(()=>{ lat+=0.0015; lng+=0.002; trackMarker.setLatLng([lat,lng]); mapTrack.panTo([lat,lng]); const eta=document.getElementById('etaLabel'); if(eta) eta.innerText = `${Math.floor(Math.random()*4+2)} min`; }, 2300);
-  }
+          <main class="flex-1 h-full overflow-y-auto no-scrollbar pb-24 md:pb-0 flex flex-col relative">
+            <header class="md:hidden flex items-center justify-between px-6 py-4 bg-brand-surface border-b border-white/5 sticky top-0 z-40">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">${u.avatar || '👤'}</span>
+                <div>
+                  <h3 class="text-sm font-bold text-white">${u.name}</h3>
+                  <p class="text-[10px] uppercase tracking-wider text-brand">${u.role}</p>
+                </div>
+              </div>
+              <button id="systemLogoutBtnMobile" class="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center text-gray-400">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
+            </header>
+            
+            <div class="p-4 sm:p-6 lg:p-8 flex-1">
+              ${mainContent}
+            </div>
+          </main>
 
-  // ---------- GLOBAL EVENT BINDING (ultra robust) ----------
-  function attachGlobalListeners() {
-    // Login / OTP
-    document.getElementById('sendOtpBtn')?.addEventListener('click', () => { const phone = document.getElementById('phoneInput')?.value.trim(); if(phone) { window.tempPhone = phone; currentScreen='otp'; render(); } else showToast('Enter phone number',true); });
-    document.getElementById('verifyOtpBtn')?.addEventListener('click', () => { let code = ''; document.querySelectorAll('.otp-digit').forEach(inp=>code+=inp.value); if(code==='123456') { let phone = window.tempPhone; let existing = appState.users.find(u=>u.phone===phone); if(existing) { setActiveUser(existing); currentScreen = existing.role.toLowerCase(); render(); showToast(`Welcome back ${existing.name}`); } else { window.pendingPhone = phone; currentScreen='profile'; render(); } } else showToast('Invalid OTP (123456)',true); });
-    document.getElementById('profileContinueBtn')?.addEventListener('click', () => { const name = document.getElementById('profileName')?.value.trim(); if(name && window.pendingPhone) { const newUser = { phone: window.pendingPhone, name, role: null, wallet: 2000, avatar: '👤', riderStats: null, vendorProducts: null }; appState.users.push(newUser); setActiveUser(newUser); persistState(); currentScreen='role'; render(); } else showToast('Enter your name',true); });
-    document.querySelectorAll('.role-btn').forEach(btn=>btn.addEventListener('click',(e)=>{ const role = btn.getAttribute('data-role'); const user = getUser(); if(user) { user.role = role; if(role==='RIDER') user.riderStats = { battery:100, engineHealth:95, rangeKm:70, todayEarnings:0, deliveriesToday:0, rating:5, performance:100 }; if(role==='VENDOR') user.vendorProducts = []; updateUser(user); setActiveUser(user); currentScreen = role.toLowerCase(); render(); showToast(`🎉 ${role} dashboard activated`); } }));
-    // Top-up / new order / rider toggle etc.
-    document.getElementById('topupWalletBtn')?.addEventListener('click',()=>{ const u=getUser(); if(u){ u.wallet += 500; updateUser(u); setActiveUser(u); render(); showToast('+500 KES added (M-PESA)'); } });
-    document.getElementById('newOrderBtn')?.addEventListener('click',()=>{ showToast('New order created! Rider assigned.'); const newOrder = { id: appState.nextOrderId++, customerPhone: getUser().phone, vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Nyama Choma + Chips', total: 550, status: 'pending', riderPhone: null, eta: null, createdAt: Date.now() }; appState.orders.push(newOrder); persistState(); render(); });
-    document.getElementById('riderOnlineToggle')?.addEventListener('click',()=>{ const u=getUser(); if(u?.role==='RIDER'){ u.riderOnline = !u.riderOnline; updateUser(u); setActiveUser(u); render(); showToast(u.riderOnline ? 'Online, ready for orders' : 'Offline mode'); } });
-    // accept order logic
-    document.querySelectorAll('.acceptOrderBtn').forEach(btn=>{ btn.addEventListener('click',(e)=>{ const orderId = parseInt(btn.getAttribute('data-order-id')); const order = appState.orders.find(o=>o.id===orderId); if(order && getUser().role==='RIDER'){ order.status = 'in_transit'; order.riderPhone = getUser().phone; order.eta = '12 min'; const riderStats = getUser().riderStats; if(riderStats){ riderStats.todayEarnings += order.total; riderStats.deliveriesToday += 1; updateUser(getUser()); } persistState(); render(); showToast(`Order #${orderId} accepted! Navigate to vendor.`); } }); });
-    // product management (vendor)
-    document.getElementById('addProductBtn')?.addEventListener('click',()=>{ const name = document.getElementById('newProdName')?.value; const price = parseInt(document.getElementById('newProdPrice')?.value); if(name && price){ const prod = { id: appState.nextProductId++, vendorPhone: getUser().phone, name, price, stock: 10 }; appState.products.push(prod); persistState(); render(); showToast('Product added'); } else showToast('Enter product & price',true); });
-    document.querySelectorAll('.delProductBtn').forEach(btn=>{ btn.addEventListener('click',(e)=>{ const prodId = parseInt(btn.getAttribute('data-prod')); appState.products = appState.products.filter(p=>p.id!==prodId); persistState(); render(); showToast('Product deleted'); }); });
-    // Logout functions
-    const logoutArr = ['logoutMainBtn','logoutCustomerBtn','logoutRiderBtn','logoutVendorBtn','logoutFleetBtn','logoutAdminBtn'];
-    logoutArr.forEach(id=>{ document.getElementById(id)?.addEventListener('click',()=>{ cleanupTracking(); appState.activeUser = null; currentScreen='login'; render(); showToast('Logged out successfully'); }); });
-    document.getElementById('backFromTracking')?.addEventListener('click',()=>{ cleanupTracking(); currentScreen='customer'; render(); });
-    document.getElementById('chatBtn')?.addEventListener('click',()=>showToast('💬 Live chat with rider (instant support)'));
-  }
+          <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-brand-surface/90 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-4 z-40">
+            ${links.map(l => `
+              <button data-screen="${l.id}" class="flex flex-col items-center justify-center w-16 h-full transition-colors ${activeTabId === l.id ? 'text-brand' : 'text-gray-400'}">
+                <i class="fas ${l.icon} text-lg mb-0.5"></i>
+                <span class="text-[10px] font-medium tracking-wide">${l.label.split(' ')[0]}</span>
+              </button>
+            `).join('')}
+          </nav>
+        </div>
+      `;
+    }
 
-  // Bootstrap
-  loadPersistedState();
-  if (appState.activeUser) { currentScreen = appState.activeUser.role.toLowerCase(); } else { currentScreen = 'splash'; setTimeout(()=>{ if(currentScreen==='splash'){ currentScreen='login'; render(); } }, 2000); }
-  render();
-</script>
+    // ------------------- UI ENGINE ROUTERS -------------------
+    function splashScreen() {
+      return `
+        <div class="w-full h-full flex flex-col items-center justify-center bg-[#060608] relative">
+          <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-brand to-orange-500 flex items-center justify-center shadow-2xl shadow-brand/30 animate-pulse mb-6">
+            <i class="fas fa-bolt text-white text-4xl"></i>
+          </div>
+          <h1 class="text-4xl font-black text-white tracking-tight">SWIFT<span class="text-brand">DASH</span></h1>
+          <p class="text-sm text-gray-500 tracking-widest uppercase mt-1">Premium Delivery Network</p>
+          <div class="absolute bottom-12 w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      `;
+    }
+
+    function loginScreen() {
+      return `
+        <div class="w-full h-full flex items-center justify-center p-4 bg-gradient-to-b from-brand-surface to-brand-bg">
+          <div class="w-full max-w-md p-8 rounded-3xl glass-surface shadow-2xl">
+            <div class="text-center mb-8">
+              <h2 class="text-3xl font-extrabold text-white tracking-tight">Identity Authentication</h2>
+              <p class="text-sm text-gray-400 mt-2">Access the unified logistics control matrix</p>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Phone Identifier</label>
+                <div class="bg-black/40 rounded-xl border border-white/10 flex items-center focus-within:border-brand transition-all overflow-hidden">
+                  <span class="pl-4 text-gray-500 font-semibold text-sm">+254</span>
+                  <input id="phoneInput" type="tel" maxlength="9" class="bg-transparent px-2 py-3.5 w-full outline-none text-white text-sm font-semibold tracking-widest" placeholder="712345678" value="712345678">
+                </div>
+              </div>
+              <button id="sendOtpBtn" class="w-full bg-brand hover:bg-brand-hover text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-brand/20 active:scale-[0.99]">
+                Dispatch Secure OTP
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function otpScreen() {
+      return `
+        <div class="w-full h-full flex items-center justify-center p-4 bg-gradient-to-b from-brand-surface to-brand-bg">
+          <div class="w-full max-w-md p-8 rounded-3xl glass-surface shadow-2xl">
+            <div class="text-center mb-6">
+              <h2 class="text-2xl font-bold text-white">Verification Matrix</h2>
+              <p class="text-sm text-gray-400 mt-1">6-digit access token sent to system device</p>
+            </div>
+            <div class="flex justify-between gap-2 my-6" id="otpBoxContainer">
+              ${Array(6).fill(0).map((_, i) => `
+                <input type="text" pattern="[0-9]*" inputmode="numeric" maxlength="1" 
+                  class="otp-digit w-12 h-14 text-center text-xl font-bold bg-black/40 border border-white/10 rounded-xl focus:border-brand focus:ring-1 focus:ring-brand outline-none text-white transition-all" 
+                  data-index="${i}">
+              `).join('')}
+            </div>
+            <button id="verifyOtpBtn" class="w-full bg-brand hover:bg-brand-hover text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-brand/20">
+              Verify Token
+            </button>
+            <div class="mt-4 text-center">
+              <p class="text-xs text-gray-500">Demo Code bypass requirement: <span class="text-brand font-mono font-bold">123456</span></p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function profileScreen() {
+      return `
+        <div class="w-full h-full flex items-center justify-center p-4 bg-gradient-to-b from-brand-surface to-brand-bg">
+          <div class="w-full max-w-md p-8 rounded-3xl glass-surface">
+            <h2 class="text-2xl font-bold text-white mb-2">Initialize Profile</h2>
+            <p class="text-sm text-gray-400 mb-6">Provide account designation details</p>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Full Name</label>
+                <input id="profileName" type="text" class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white outline-none focus:border-brand text-sm" placeholder="e.g. Kipchumba Kuria">
+              </div>
+              <button id="profileContinueBtn" class="w-full bg-brand hover:bg-brand-hover text-white font-bold py-3.5 rounded-xl transition-all">
+                Persist Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function roleScreen() {
+      const configurationRoles = [
+        { id: 'CUSTOMER', icon: 'fa-shopping-bag', header: 'Consumer Matrix', desc: 'On-demand client delivery deployment' },
+        { id: 'RIDER', icon: 'fa-motorcycle', header: 'Courier Operator', desc: 'Fulfillment & telemetry fleet' },
+        { id: 'VENDOR', icon: 'fa-store', header: 'Merchant Node', desc: 'Product and pipeline distribution management' },
+        { id: 'ADMIN', icon: 'fa-chart-network', header: 'System Architect', desc: 'Global analytical state supervisor' }
+      ];
+      return `
+        <div class="w-full h-full flex flex-col items-center justify-center p-6 bg-brand-bg">
+          <div class="max-w-2xl w-full text-center mb-8">
+            <h2 class="text-3xl font-black text-white">Select Environment Layer</h2>
+            <p class="text-gray-400 text-sm mt-1">Initialize workspace layout archetype</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl w-full">
+            ${configurationRoles.map(r => `
+              <button data-target-role="${r.id}" class="role-selector-card glass-surface-interactive text-left p-5 rounded-2xl flex items-start gap-4">
+                <div class="w-12 h-12 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand text-xl shrink-0">
+                  <i class="fas ${r.icon}"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-lg">${r.header}</h3>
+                  <p class="text-gray-400 text-xs mt-1 leading-relaxed">${r.desc}</p>
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function customerDashboard() {
+      const u = appState.activeUser;
+      const runningOrders = appState.orders.filter(o => o.customerPhone === u.phone);
+      
+      const dashboardHtml = `
+        <div class="space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 class="text-3xl font-black text-white tracking-tight">Operational Matrix</h1>
+              <p class="text-sm text-gray-400">On-demand ecosystem distribution system</p>
+            </div>
+            <button id="triggerNewOrderBtn" class="bg-brand hover:bg-brand-hover text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand/20 self-start sm:self-auto">
+              <i class="fas fa-plus"></i> Initialize Order Vector
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="bg-brand-card p-5 rounded-2xl border border-white/5 flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl"><i class="fas fa-wallet"></i></div>
+              <div>
+                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Active Ledger</p>
+                <h3 class="text-xl font-bold text-white mt-0.5">KES ${u.wallet.toLocaleString()}</h3>
+                <button id="mpesaTopupBtn" class="text-brand text-xs font-semibold mt-1 hover:underline flex items-center gap-1"><i class="fas fa-phone-alt"></i> Topup via STK Push</button>
+              </div>
+            </div>
+            
+            <div class="bg-brand-card p-5 rounded-2xl border border-white/5 flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-brand/10 text-brand flex items-center justify-center text-xl"><i class="fas fa-truck"></i></div>
+              <div>
+                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Pipelines In-Flight</p>
+                <h3 class="text-xl font-bold text-white mt-0.5">${runningOrders.filter(o => o.status === 'in_transit').length} Core Pipelines</h3>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-brand-card rounded-2xl border border-white/5 p-6">
+            <h3 class="text-lg font-bold text-white mb-4">Pipeline Execution Log</h3>
+            <div class="space-y-3">
+              ${runningOrders.length ? runningOrders.map(o => `
+                <div class="p-4 rounded-xl bg-black/20 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-brand"><i class="fas fa-box"></i></div>
+                    <div>
+                      <h4 class="text-sm font-bold text-white">${o.vendorName}</h4>
+                      <p class="text-xs text-gray-400 mt-0.5">${o.items}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
+                    <div>
+                      <span class="text-sm font-mono font-bold text-white block text-left sm:text-right">KES ${o.total}</span>
+                      <span class="text-[11px] text-gray-500 block">ID: #${o.id}</span>
+                    </div>
+                    ${o.status === 'in_transit' ? `
+                      <button data-track-pipeline="${o.id}" class="bg-brand/10 hover:bg-brand text-brand hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+                        <i class="fas fa-map-location-dot"></i> Track Telemetry
+                      </button>
+                    ` : `
+                      <span class="px-3 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-semibold">Fulfillment Complete</span>
+                    `}
+                  </div>
+                </div>
+              `).join('') : `
+                <div class="text-center py-8 text-gray-500">
+                  <i class="fas fa-cubes text-3xl mb-2 block"></i> No operational history in current sequence.
+                </div>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+      return getLayoutWrapper(dashboardHtml, 'customer');
+    }
+
+    function riderDashboard() {
+      const u = appState.activeUser;
+      const pendingOrders = appState.orders.filter(o => o.status === 'pending');
+      const activeDelivery = appState.orders.find(o => o.riderPhone === u.phone && o.status === 'in_transit');
+
+      const dashboardHtml = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 class="text-2xl font-black text-white">${u.name}</h2>
+                <p class="text-xs text-gray-400 mt-0.5">Hardware Framework Telemetry Console</p>
+              </div>
+              <button id="toggleRiderOnline" class="px-4 py-2 rounded-xl text-xs font-bold transition-colors ${u.riderOnline ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/10' : 'bg-white/10 text-gray-400'}">
+                ● ${u.riderOnline ? 'SYSTEM OPERATIONAL' : 'SYSTEM OFFLINE'}
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div class="bg-brand-card p-4 rounded-xl border border-white/5">
+                <span class="text-gray-400 text-xs block font-medium">EV Charge State</span>
+                <span class="text-xl font-bold text-white block mt-1">${u.riderStats.battery}%</span>
+              </div>
+              <div class="bg-brand-card p-4 rounded-xl border border-white/5">
+                <span class="text-gray-400 text-xs block font-medium">Estimated Range</span>
+                <span class="text-xl font-bold text-white block mt-1">${u.riderStats.rangeKm} KM</span>
+              </div>
+              <div class="bg-brand-card p-4 rounded-xl border border-white/5">
+                <span class="text-gray-400 text-xs block font-medium">Daily Operations</span>
+                <span class="text-xl font-bold text-white block mt-1">${u.riderStats.deliveriesToday} Units</span>
+              </div>
+              <div class="bg-brand-card p-4 rounded-xl border border-white/5">
+                <span class="text-gray-400 text-xs block font-medium">Quality Metric</span>
+                <span class="text-xl font-bold text-white block mt-1">⭐ ${u.riderStats.rating}</span>
+              </div>
+            </div>
+
+            ${activeDelivery ? `
+              <div class="p-6 rounded-2xl bg-brand/10 border border-brand/20 space-y-4">
+                <div class="flex items-center justify-between">
+                  <span class="px-2.5 py-1 rounded bg-brand text-white text-[10px] font-black tracking-widest uppercase">Active Pipeline Task</span>
+                  <span class="text-xs text-white font-mono font-semibold">ETA: ${activeDelivery.eta}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <div>
+                    <h3 class="text-lg font-bold text-white">${activeDelivery.vendorName}</h3>
+                    <p class="text-sm text-gray-300 mt-0.5">${activeDelivery.items}</p>
+                  </div>
+                  <button data-complete-pipeline="${activeDelivery.id}" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all">
+                    Acknowledge Delivery
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+              <h3 class="text-lg font-bold text-white mb-4">Pipeline Allocation Opportunities</h3>
+              <div class="space-y-3">
+                ${pendingOrders.length ? pendingOrders.map(o => `
+                  <div class="p-4 rounded-xl bg-black/20 border border-white/5 flex items-center justify-between">
+                    <div>
+                      <h4 class="text-sm font-bold text-white">${o.vendorName}</h4>
+                      <p class="text-xs text-gray-400 mt-0.5">Payload Valuation: KES ${o.total}</p>
+                    </div>
+                    <button data-accept-pipeline="${o.id}" class="bg-brand hover:bg-brand-hover text-white px-4 py-2 rounded-lg text-xs font-bold transition-all">
+                      Lock Target Pipeline
+                    </button>
+                  </div>
+                `).join('') : `
+                  <p class="text-center text-sm text-gray-500 py-4">No vector processing request chains currently unallocated.</p>
+                `}
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-brand-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-white mb-4">Rider Operating Ledger</h3>
+              <div class="text-center py-6 bg-black/20 rounded-xl border border-white/5">
+                <span class="text-xs text-gray-400 block uppercase tracking-wider">Accumulated Balance</span>
+                <span class="text-3xl font-black text-white mt-1 block">KES ${u.wallet.toLocaleString()}</span>
+              </div>
+            </div>
+            <button id="riderWithdrawBtn" class="w-full bg-white/5 hover:bg-white/10 text-white font-semibold py-3 rounded-xl text-sm transition-all mt-4">
+              Initiate Instant Settlement Transfer
+            </button>
+          </div>
+        </div>
+      `;
+      return getLayoutWrapper(dashboardHtml, 'rider');
+    }
+
+    function vendorDashboard() {
+      const u = appState.activeUser;
+      const myProducts = appState.products.filter(p => p.vendorPhone === u.phone);
+      const myOrders = appState.orders.filter(o => o.vendorId === u.phone);
+
+      const dashboardHtml = `
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+              <h2 class="text-2xl font-black text-white">${u.name} Control Node</h2>
+              <p class="text-xs text-gray-400 mt-0.5">Decentralized Inventory & Processing Matrix</p>
+            </div>
+
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+              <h3 class="text-lg font-bold text-white mb-4">Active Pipeline Production System</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input id="newProductName" type="text" placeholder="Product Identifier Label" class="bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-brand">
+                <input id="newProductPrice" type="number" placeholder="Valuation Threshold (KES)" class="bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-brand">
+                <button id="submitProductBtn" class="sm:col-span-2 bg-brand hover:bg-brand-hover text-white font-bold py-3 rounded-xl text-sm transition-all">
+                  Publish Product Node
+                </button>
+              </div>
+
+              <div class="mt-6 space-y-2">
+                <h4 class="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">Active Registered Catalog</h4>
+                ${myProducts.map(p => `
+                  <div class="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5">
+                    <span class="text-sm text-gray-200 font-medium">${p.name}</span>
+                    <div class="flex items-center gap-4">
+                      <span class="text-sm font-mono font-bold text-brand">KES ${p.price}</span>
+                      <button data-delete-product="${p.id}" class="text-gray-500 hover:text-red-400 text-xs transition-colors"><i class="fas fa-trash"></i></button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+              <h3 class="text-lg font-bold text-white mb-1">Node Analytics</h3>
+              <canvas id="vendorNodeChart" class="mt-4"></canvas>
+            </div>
+            
+            <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+              <h3 class="text-lg font-bold text-white mb-3">Incoming Demand Signals</h3>
+              <div class="space-y-2">
+                ${myOrders.map(o => `
+                  <div class="p-3 rounded-xl bg-black/10 border border-white/5 flex items-center justify-between text-xs">
+                    <div>
+                      <p class="text-gray-200 font-medium">${o.items}</p>
+                      <p class="text-gray-500 mt-0.5">Status: <span class="text-brand uppercase font-bold">${o.status}</span></p>
+                    </div>
+                    <span class="font-mono text-white font-bold">KES ${o.total}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      return getLayoutWrapper(dashboardHtml, 'vendor');
+    }
+
+    function adminDashboard() {
+      const activeCouriers = appState.users.filter(u => u.role === 'RIDER' && u.riderOnline).length;
+      const totalFulfillmentCapital = appState.orders.reduce((acc, o) => acc + o.total, 0);
+
+      const dashboardHtml = `
+        <div class="space-y-6">
+          <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+            <h1 class="text-3xl font-black text-gradient">System Core Coretex</h1>
+            <p class="text-xs text-gray-400 mt-1">Global Configuration Matrix and High-Performance Cluster Telemetry</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-brand-card p-5 rounded-xl border border-white/5">
+              <span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Gross Infrastructure Volume</span>
+              <span class="text-2xl font-black text-white mt-1 block">KES ${(appState.systemMetrics.totalVolume + totalFulfillmentCapital).toLocaleString()}</span>
+            </div>
+            <div class="bg-brand-card p-5 rounded-xl border border-white/5">
+              <span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Operational Courier Vectors</span>
+              <span class="text-2xl font-black text-white mt-1 block">${appState.systemMetrics.dynamicRidersCount + activeCouriers} Cores</span>
+            </div>
+            <div class="bg-brand-card p-5 rounded-xl border border-white/5">
+              <span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Ecosystem Request Packets</span>
+              <span class="text-2xl font-black text-white mt-1 block">${appState.orders.length} Pipelines</span>
+            </div>
+          </div>
+
+          <div class="bg-brand-card p-6 rounded-2xl border border-white/5">
+            <h3 class="text-lg font-bold text-white mb-4">Network Activity Frequency</h3>
+            <div class="w-full max-h-72">
+              <canvas id="adminSystemChart" height="100"></canvas>
+            </div>
+          </div>
+        </div>
+      `;
+      return getLayoutWrapper(dashboardHtml, 'admin');
+    }
+
+    function trackingScreen() {
+      return `
+        <div class="w-full h-full flex flex-col relative bg-[#060608]">
+          <div id="leafletGlobalContainer" class="w-full flex-1 relative min-h-[50%] z-10"></div>
+          
+          <div class="p-6 bg-brand-surface border-t border-white/5 glass-surface z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center text-brand text-2xl animate-pulse">
+                <i class="fas fa-satellite-dish"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-white">Live Courier Vector In-Flight</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Calculated Spatial Resolution Intersection Delta</p>
+              </div>
+            </div>
+            
+            <div class="flex items-center justify-between sm:justify-end gap-8">
+              <div class="text-left sm:text-right">
+                <span class="text-xs text-gray-400 block uppercase tracking-widest font-bold">Vector Resolution ETA</span>
+                <span id="liveEtaText" class="text-2xl font-black text-brand tracking-tight">Recalculating...</span>
+              </div>
+              <button id="abortTrackingScreenBtn" class="bg-white/5 hover:bg-white/10 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all">
+                Terminate Tracking Shell
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------- AUXILIARY COMPONENT MODULES -------------------
+    function triggerNotification(msg, isFailure = false) {
+      const node = document.createElement('div');
+      node.className = `fixed bottom-20 sm:bottom-6 right-4 left-4 sm:left-auto sm:w-96 px-5 py-4 rounded-xl z-[99999] shadow-2xl transition-all duration-300 transform translate-y-4 opacity-0 border ${
+        isFailure ? 'bg-red-950/80 text-red-200 border-red-500/30' : 'bg-zinc-900/90 text-zinc-100 border-brand/30'
+      }`;
+      node.innerHTML = `
+        <div class="flex items-center gap-3">
+          <i class="fas ${isFailure ? 'fa-triangle-exclamation text-red-400' : 'fa-circle-check text-brand'} text-lg"></i>
+          <p class="text-xs font-semibold tracking-wide leading-tight">${msg}</p>
+        </div>
+      `;
+      document.body.appendChild(node);
+      setTimeout(() => {
+        node.classList.remove('translate-y-4', 'opacity-0');
+      }, 50);
+      setTimeout(() => {
+        node.classList.add('translate-y-4', 'opacity-0');
+        setTimeout(() => node.remove(), 300);
+      }, 3500);
+    }
+
+    function deconstructGlobalInstances() {
+      if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; }
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; liveMarker = null; }
+      if (activeChart) { activeChart.destroy(); activeChart = null; }
+    }
+
+    // ------------------- EXTERNAL API RENDERING ENGINES -------------------
+    function setupAdminSystemChart() {
+      const el = document.getElementById('adminSystemChart');
+      if (!el) return;
+      if (activeChart) activeChart.destroy();
+      activeChart = new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: ['02:00', '06:00', '10:00', '14:00', '18:00', '22:00'],
+          datasets: [{
+            label: 'Network Core Pipeline Bandwidth',
+            data: [2400, 7800, 14200, 19500, 28400, 11200],
+            borderColor: '#FF5A1E',
+            borderWidth: 2,
+            backgroundColor: 'rgba(255, 90, 30, 0.05)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.02)' }, ticks: { color: '#6B7280' } },
+            y: { grid: { color: 'rgba(255,255,255,0.02)' }, ticks: { color: '#6B7280' } }
+          }
+        }
+      });
+    }
+
+    function setupVendorNodeChart() {
+      const el = document.getElementById('vendorNodeChart');
+      if (!el) return;
+      if (activeChart) activeChart.destroy();
+      activeChart = new Chart(el.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Alpha', 'Beta', 'Gamma'],
+          datasets: [{
+            data: [4500, 9200, 3100],
+            backgroundColor: '#FF5A1E',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#6B7280' } },
+            y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#6B7280' } }
+          }
+        }
+      });
+    }
+
+    function setupLiveTrackingMatrix() {
+      const el = document.getElementById('leafletGlobalContainer');
+      if (!el) return;
+      
+      let baseLat = -1.2921;
+      let baseLng = 36.8219;
+
+      mapInstance = L.map(el, { zoomControl: false }).setView([baseLat, baseLng], 14);
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© CartoDB'
+      }).addTo(mapInstance);
+
+      const dynamicIcon = L.divIcon({
+        html: `
+          <div class="relative w-8 h-8 flex items-center justify-center">
+            <div class="absolute inset-0 bg-brand/30 rounded-full animate-ping scale-150"></div>
+            <div class="w-5 h-5 bg-brand rounded-full border-2 border-white flex items-center justify-center shadow-2xl text-[10px] text-white">
+              <i class="fas fa-motorcycle"></i>
+            </div>
+          </div>
+        `,
+        iconSize: [32, 32]
+      });
+
+      liveMarker = L.marker([baseLat, baseLng], { icon: dynamicIcon }).addTo(mapInstance);
+
+      trackingInterval = setInterval(() => {
+        baseLat += (Math.random() - 0.4) * 0.0009;
+        baseLng += (Math.random() - 0.4) * 0.0009;
+        const targetPos = [baseLat, baseLng];
+        
+        if (liveMarker) {
+          liveMarker.setLatLng(targetPos);
+          mapInstance.panTo(targetPos);
+        }
+        
+        const textNode = document.getElementById('liveEtaText');
+        if (textNode) {
+          textNode.innerText = `${Math.floor(Math.random() * 5 + 3)} MIN`;
+        }
+      }, 2500);
+    }
+
+    // ------------------- APPLICATION RENDERING PIPELINE -------------------
+    function renderPipeline() {
+      const mountNode = document.getElementById('root');
+      if (!mountNode) return;
+
+      if (currentScreen === 'splash') mountNode.innerHTML = splashScreen();
+      else if (currentScreen === 'login') mountNode.innerHTML = loginScreen();
+      else if (currentScreen === 'otp') mountNode.innerHTML = otpScreen();
+      else if (currentScreen === 'profile') mountNode.innerHTML = profileScreen();
+      else if (currentScreen === 'role') mountNode.innerHTML = roleScreen();
+      else if (currentScreen === 'customer') mountNode.innerHTML = customerDashboard();
+      else if (currentScreen === 'wallet_view') mountNode.innerHTML = getLayoutWrapper(`
+        <div class="bg-brand-card p-6 rounded-2xl border border-white/5 space-y-4 max-w-xl mx-auto">
+          <h2 class="text-2xl font-bold text-white">Ecosystem Capital Balance</h2>
+          <div class="bg-black/30 p-6 rounded-xl border border-white/5 text-center">
+            <span class="text-xs text-gray-400 block uppercase tracking-wider">Settlement Value Assets</span>
+            <span class="text-4xl font-black text-white mt-2 block">KES ${appState.activeUser?.wallet?.toLocaleString()}</span>
+          </div>
+          <button id="mpesaTopupBtn" class="w-full bg-brand text-white font-bold py-3.5 rounded-xl text-sm transition-all">Trigger M-Pesa STK Push Transfer</button>
+        </div>
+      `, 'wallet_view');
+      else if (currentScreen === 'rider') mountNode.innerHTML = riderDashboard();
+      else if (currentScreen === 'vendor') mountNode.innerHTML = vendorDashboard();
+      else if (currentScreen === 'admin') mountNode.innerHTML = adminDashboard();
+      else if (currentScreen === 'tracking') mountNode.innerHTML = trackingScreen();
+
+      // Hook Sub-System APIs post DOM insertion
+      if (currentScreen === 'admin') setupAdminSystemChart();
+      if (currentScreen === 'vendor') setupVendorNodeChart();
+      if (currentScreen === 'tracking') setupLiveTrackingMatrix();
+    }
+
+    // ------------------- SYSTEM DELEGATED EVENT ROUTERS (ZERO BUG) -------------------
+    function registerGlobalSystemEvents() {
+      const rootNode = document.getElementById('root');
+      
+      // Global Dynamic Viewport Context Switcher
+      rootNode.addEventListener('click', (e) => {
+        const targetBtn = e.target.closest('[data-screen]');
+        if (targetBtn) {
+          deconstructGlobalInstances();
+          currentScreen = targetBtn.getAttribute('data-screen');
+          renderPipeline();
+        }
+      });
+
+      // Authentication Sequence Flow Interceptors
+      rootNode.addEventListener('click', (e) => {
+        if (e.target.closest('#sendOtpBtn')) {
+          const rawNum = document.getElementById('phoneInput').value.trim();
+          if (rawNum.length === 9) {
+            window.sessionContextPhone = '+254' + rawNum;
+            currentScreen = 'otp';
+            renderPipeline();
+            // Async Focus Next Frame
+            setTimeout(() => document.querySelector('.otp-digit')?.focus(), 50);
+          } else {
+            triggerNotification('Invalid Phone Format Constraint Metrics', true);
+          }
+        }
+
+        if (e.target.closest('#verifyOtpBtn')) {
+          let verificationSequence = '';
+          document.querySelectorAll('.otp-digit').forEach(el => verificationSequence += el.value);
+
+          if (verificationSequence === '123456') {
+            const registeredProfile = appState.users.find(u => u.phone === window.sessionContextPhone);
+            if (registeredProfile) {
+              appState.activeUser = registeredProfile;
+              saveState();
+              currentScreen = registeredProfile.role.toLowerCase();
+              renderPipeline();
+              triggerNotification(`Identity Matrix Acknowledged: Welcome ${registeredProfile.name}`);
+            } else {
+              currentScreen = 'profile';
+              renderPipeline();
+            }
+          } else {
+            triggerNotification('Security Token Mismatch Event Detected', true);
+          }
+        }
+
+        if (e.target.closest('#profileContinueBtn')) {
+          const targetIdentityStr = document.getElementById('profileName').value.trim();
+          if (targetIdentityStr.length > 2) {
+            const baselineObject = {
+              phone: window.sessionContextPhone,
+              name: targetIdentityStr,
+              role: null,
+              wallet: 0,
+              avatar: '👤'
+            };
+            appState.users.push(baselineObject);
+            appState.activeUser = baselineObject;
+            saveState();
+            currentScreen = 'role';
+            renderPipeline();
+          } else {
+            triggerNotification('Identity Identifier Length Constraint Violation', true);
+          }
+        }
+      });
+
+      // Unified Role Provisioner Execution Engine
+      rootNode.addEventListener('click', (e) => {
+        const optionCard = e.target.closest('[data-target-role]');
+        if (optionCard) {
+          const roleKey = optionCard.getAttribute('data-target-role');
+          const targetContextUser = appState.users.find(u => u.phone === appState.activeUser.phone);
+          
+          if (targetContextUser) {
+            targetContextUser.role = roleKey;
+            if (roleKey === 'RIDER') {
+              targetContextUser.riderOnline = true;
+              targetContextUser.riderStats = { battery: 100, engineHealth: 100, rangeKm: 75, deliveriesToday: 0, rating: 5.0 };
+            }
+            appState.activeUser = targetContextUser;
+            saveState();
+            currentScreen = roleKey.toLowerCase();
+            renderPipeline();
+            triggerNotification(`Authorized Role Structure Set To: ${roleKey}`);
+          }
+        }
+      });
+
+      // OTP Text Array Focus Controller Flow
+      rootNode.addEventListener('input', (e) => {
+        if (e.target.classList.contains('otp-digit')) {
+          const currentIdx = parseInt(e.target.getAttribute('data-index'));
+          if (e.target.value.length === 1 && currentIdx < 5) {
+            document.querySelector(`[data-index="${currentIdx + 1}"]`)?.focus();
+          }
+        }
+      });
+
+      rootNode.addEventListener('keydown', (e) => {
+        if (e.target.classList.contains('otp-digit') && e.key === 'Backspace') {
+          const currentIdx = parseInt(e.target.getAttribute('data-index'));
+          if (!e.target.value && currentIdx > 0) {
+            const pastNode = document.querySelector(`[data-index="${currentIdx - 1}"]`);
+            if (pastNode) {
+              pastNode.value = '';
+              pastNode.focus();
+            }
+          }
+        }
+      });
+
+      // Consumer Execution Pipeline Trigger Events
+      rootNode.addEventListener('click', (e) => {
+        if (e.target.closest('#mpesaTopupBtn')) {
+          const matchedUser = appState.users.find(u => u.phone === appState.activeUser.phone);
+          matchedUser.wallet += 1000;
+          appState.activeUser = matchedUser;
+          saveState();
+          renderPipeline();
+          triggerNotification('STK Push Request Acknowledged: KES 1,000 Transferred');
+        }
+
+        if (e.target.closest('#triggerNewOrderBtn')) {
+          const payloadInstance = {
+            id: appState.nextOrderId++,
+            customerPhone: appState.activeUser.phone,
+            vendorId: '+254700123456',
+            vendorName: 'Mama Jane Kitchen',
+            items: 'Grilled Choma Chicken Premium Block',
+            total: 580,
+            status: 'pending',
+            riderPhone: null,
+            eta: null
+          };
+          appState.orders.push(payloadInstance);
+          saveState();
+          renderPipeline();
+          triggerNotification('New Vector Demand Packet Broadcasted to Courier Matrix');
+        }
+
+        const trackBtn = e.target.closest('[data-track-pipeline]');
+        if (trackBtn) {
+          deconstructGlobalInstances();
+          currentScreen = 'tracking';
+          renderPipeline();
+        }
+
+        if (e.target.closest('#abortTrackingScreenBtn')) {
+          deconstructGlobalInstances();
+          currentScreen = appState.activeUser.role.toLowerCase();
+          renderPipeline();
+        }
+      });
+
+      // Rider Control Interface Trigger Actions
+      rootNode.addEventListener('click', (e) => {
+        if (e.target.closest('#toggleRiderOnline')) {
+          const u = appState.users.find(x => x.phone === appState.activeUser.phone);
+          u.riderOnline = !u.riderOnline;
+          appState.activeUser = u;
+          saveState();
+          renderPipeline();
+          triggerNotification(u.riderOnline ? 'Telemetry Stream Active' : 'Telemetry Stream Deactivated');
+        }
+
+        const acceptBtn = e.target.closest('[data-accept-pipeline]');
+        if (acceptBtn) {
+          const targetId = parseInt(acceptBtn.getAttribute('data-accept-pipeline'));
+          const targetOrder = appState.orders.find(o => o.id === targetId);
+          if (targetOrder) {
+            targetOrder.status = 'in_transit';
+            targetOrder.riderPhone = appState.activeUser.phone;
+            targetOrder.eta = '12 MIN';
+            saveState();
+            renderPipeline();
+            triggerNotification('Pipeline Trajectory Locked. Proceed to Merchant Node.');
+          }
+        }
+
+        const completeBtn = e.target.closest('[data-complete-pipeline]');
+        if (completeBtn) {
+          const targetId = parseInt(completeBtn.getAttribute('data-complete-pipeline'));
+          const targetOrder = appState.orders.find(o => o.id === targetId);
+          if (targetOrder) {
+            targetOrder.status = 'delivered';
+            
+            // Adjust balances
+            const me = appState.users.find(x => x.phone === appState.activeUser.phone);
+            me.wallet += targetOrder.total;
+            me.riderStats.deliveriesToday += 1;
+            appState.activeUser = me;
+            
+            saveState();
+            renderPipeline();
+            triggerNotification('Task Pipeline Successfully Completed.');
+          }
+        }
+      });
+
+      // Merchant Store Production Operations
+      rootNode.addEventListener('click', (e) => {
+        if (e.target.closest('#submitProductBtn')) {
+          const label = document.getElementById('newProductName').value.trim();
+          const valuation = parseInt(document.getElementById('newProductPrice').value);
+          
+          if (label && valuation > 0) {
+            appState.products.push({
+              id: appState.nextProductId++,
+              vendorPhone: appState.activeUser.phone,
+              name: label,
+              price: valuation
+            });
+            saveState();
+            renderPipeline();
+            triggerNotification('New Product Pipeline Node Broadcast Completed');
+          } else {
+            triggerNotification('Validation Mismatch on Production Metadata Input Fields', true);
+          }
+        }
+
+        const deleteProductBtn = e.target.closest('[data-delete-product]');
+        if (deleteProductBtn) {
+          const targetId = parseInt(deleteProductBtn.getAttribute('data-delete-product'));
+          appState.products = appState.products.filter(p => p.id !== targetId);
+          saveState();
+          renderPipeline();
+          triggerNotification('Product Matrix Block Deregistered');
+        }
+      });
+
+      // System Reset Operations (Logout)
+      rootNode.addEventListener('click', (e) => {
+        if (e.target.closest('#systemLogoutBtn') || e.target.closest('#systemLogoutBtnMobile')) {
+          deconstructGlobalInstances();
+          appState.activeUser = null;
+          saveState();
+          currentScreen = 'login';
+          renderPipeline();
+          triggerNotification('Secure Identity Destruction Task Complete');
+        }
+      });
+    }
+
+    // ------------------- APPLICATION BOOTSTRAP SEQUENCER -------------------
+    function runCoreSystemBootstrap() {
+      loadState();
+      registerGlobalSystemEvents();
+      
+      if (appState.activeUser) {
+        currentScreen = appState.activeUser.role.toLowerCase();
+        renderPipeline();
+      } else {
+        currentScreen = 'splash';
+        renderPipeline();
+        setTimeout(() => {
+          if (currentScreen === 'splash') {
+            currentScreen = 'login';
+            renderPipeline();
+          }
+        }, 1800);
+      }
+    }
+
+    // Initialize System Architecture Execution
+    runCoreSystemBootstrap();
+  </script>
 </body>
 </html>
