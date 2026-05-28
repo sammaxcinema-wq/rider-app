@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Delivery Rider Pro | Premium SaaS Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>SwiftDash | Premium Delivery Ecosystem</title>
   <!-- Google Fonts + Tailwind + Font Awesome + Leaflet + Chart.js -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -12,257 +12,209 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    /* custom scroll & glass overrides */
     * { font-family: 'Inter', sans-serif; }
-    body { background: #050505; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-    .mobile-container {
-      max-width: 430px; width: 100%; height: 850px; background: #0D0D0D;
-      border-radius: 44px; overflow: hidden; position: relative; box-shadow: 0 25px 45px -12px black;
-      border: 1px solid rgba(255,90,30,0.2); display: flex; flex-direction: column;
+    body { background: #050505; margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    /* responsive container – works on mobile & PC */
+    .app-container {
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      background: #0D0D0D;
+      border-radius: 2rem;
+      box-shadow: 0 25px 45px -12px black;
+      border: 1px solid rgba(255,90,30,0.2);
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    @media (min-width: 1024px) {
+      .app-container { min-height: 85vh; }
+      .dashboard-grid { display: grid; grid-template-columns: 280px 1fr; gap: 1rem; }
     }
     .glass-card { background: rgba(20,20,30,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,90,30,0.2); border-radius: 1.5rem; }
     .btn-primary { background: linear-gradient(95deg, #FF5A1E, #FF8C42); transition: all 0.2s; }
     .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(255,90,30,0.4); }
     .text-gradient { background: linear-gradient(135deg, #FF8C42, #FF5A1E); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .scrollable { overflow-y: auto; scrollbar-width: thin; padding-bottom: 80px; }
-    .scrollable::-webkit-scrollbar { width: 4px; }
-    .scrollable::-webkit-scrollbar-track { background: #1A1A1A; }
-    .scrollable::-webkit-scrollbar-thumb { background: #FF5A1E; border-radius: 8px; }
-    .bottom-nav { background: rgba(26,26,26,0.95); backdrop-filter: blur(10px); border-top: 1px solid #333; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #22c55e; animation: pulse 1.5s infinite; }
+    .scrollable { overflow-y: auto; scrollbar-width: thin; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #22c55e; animation: pulse 1.5s infinite; display: inline-block; }
     @keyframes pulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
-    .map-placeholder { background: #1E1E2F; background-image: radial-gradient(circle at 10% 20%, rgba(255,90,30,0.1) 2%, transparent 2.5%); background-size: 28px 28px; }
     .leaflet-container { background: #12121C; border-radius: 24px; }
+    input, button { transition: all 0.2s; }
+    .toast-notify { position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 400px; margin: 0 auto; background: #1f1f2e; border-left: 4px solid #FF5A1E; padding: 12px 20px; border-radius: 60px; color: white; z-index: 9999; backdrop-filter: blur(12px); animation: fadeUp 0.3s; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
-<div id="app" class="mobile-container"></div>
+<div id="root" class="app-container"></div>
 
 <script>
-  // ------------------- STATE MANAGEMENT -------------------
+  // ------------------- ULTRA PRO STATE + PERSISTENCE -------------------
   let currentScreen = 'splash';
   let activeChart = null;
   let mapTrack = null;
   let trackInterval = null;
   let trackMarker = null;
-  
-  const appState = {
-    phone: '+254 712 345 678',
-    name: '',
-    role: null,
-    riderOnline: true,
-    walletBalance: 3450,
-    riderStats: { battery: 97, engineHealth: 89, rangeKm: 62, totalKm: 4250.58, todayEarnings: 2450, deliveriesToday: 12, rating: 4.92, performance: 94 },
-    orders: [
-      { id: 'ORD001', vendor: 'KFC Westlands', total: 850, status: 'delivered', date: 'Today' },
-      { id: 'ORD002', vendor: 'Artcaffe', total: 1240, status: 'in_transit', eta: '8 min' }
-    ]
+
+  // Data models
+  let appState = {
+    users: [],               // { phone, name, role, wallet, avatar, riderStats, vendorProducts, ... }
+    activeUser: null,
+    orders: [],             // dynamic orders
+    products: [],           // vendor products (global, per vendor)
+    vehicles: [],           // fleet
+    nextOrderId: 100,
+    nextProductId: 200,
   };
 
-  // Helper: clean up maps/intervals
-  function cleanupTracking() {
-    if (trackInterval) { clearInterval(trackInterval); trackInterval = null; }
-    if (mapTrack) { mapTrack.remove(); mapTrack = null; }
-    if (activeChart) { activeChart.destroy(); activeChart = null; }
+  // ---------- Helper: localStorage load/save ----------
+  function loadPersistedState() {
+    try {
+      const saved = localStorage.getItem('swiftdash_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        appState = { ...appState, ...parsed };
+        if (!appState.users) appState.users = [];
+        if (!appState.orders) appState.orders = [];
+        if (!appState.products) appState.products = [];
+        if (!appState.vehicles) appState.vehicles = [];
+      } else {
+        // seed demo data
+        seedDemoData();
+      }
+    } catch(e) { seedDemoData(); }
+  }
+  function persistState() {
+    const toStore = { users: appState.users, activeUser: appState.activeUser, orders: appState.orders, products: appState.products, vehicles: appState.vehicles, nextOrderId: appState.nextOrderId, nextProductId: appState.nextProductId };
+    localStorage.setItem('swiftdash_state', JSON.stringify(toStore));
+  }
+  function seedDemoData() {
+    appState.users = [
+      { phone: '+254712345678', name: 'James Mwangi', role: 'CUSTOMER', wallet: 5600, avatar: '👨‍🍳', riderStats: null, vendorProducts: null },
+      { phone: '+254711222333', name: 'Rider Mike', role: 'RIDER', wallet: 2450, avatar: '🏍️', riderStats: { battery: 92, engineHealth: 88, rangeKm: 58, totalKm: 4780, todayEarnings: 3250, deliveriesToday: 14, rating: 4.96, performance: 97 }, vendorProducts: null },
+      { phone: '+254700123456', name: 'Mama Jane', role: 'VENDOR', wallet: 12200, avatar: '🍲', vendorProducts: [{ id: 201, name: 'Ugali + Sukuma', price: 180, sold: 32 }, { id: 202, name: 'Grilled Chicken', price: 450, sold: 18 }], riderStats: null }
+    ];
+    appState.orders = [
+      { id: 101, customerPhone: '+254712345678', vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Ugali + Chicken', total: 630, status: 'in_transit', riderPhone: '+254711222333', eta: '6 min', createdAt: Date.now() - 3600000 },
+      { id: 102, customerPhone: '+254712345678', vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Grilled Chicken', total: 450, status: 'delivered', riderPhone: null, eta: null, createdAt: Date.now() - 86400000 }
+    ];
+    appState.products = [
+      { id: 201, vendorPhone: '+254700123456', name: 'Ugali + Sukuma', price: 180, stock: 20 },
+      { id: 202, vendorPhone: '+254700123456', name: 'Grilled Chicken', price: 450, stock: 12 },
+    ];
+    appState.vehicles = [{ id: 'V1', name: 'EV Bike 01', status: 'active', lastMaintenance: '2025-04-01' }];
+    appState.nextOrderId = 103;
+    appState.nextProductId = 203;
+    persistState();
   }
 
-  // Render engine
+  // helper: get current user obj
+  function getUser() { return appState.activeUser ? appState.users.find(u => u.phone === appState.activeUser.phone) : null; }
+  function setActiveUser(user) { appState.activeUser = user; persistState(); }
+  function updateUser(updated) { const idx = appState.users.findIndex(u => u.phone === updated.phone); if(idx!==-1) appState.users[idx]=updated; persistState(); }
+  function showToast(msg, isErr=false) { const toast = document.createElement('div'); toast.className = 'toast-notify'; toast.innerHTML = `<i class="fas ${isErr?'fa-exclamation-triangle':'fa-check-circle'} mr-2 text-orange-400"></i> ${msg}`; document.body.appendChild(toast); setTimeout(()=>toast.remove(), 2800); }
+
+  // cleanup tracking
+  function cleanupTracking() { if(trackInterval){clearInterval(trackInterval);trackInterval=null;} if(mapTrack){mapTrack.remove();mapTrack=null;} if(activeChart){activeChart.destroy();activeChart=null;} }
+
+  // render engine
   function render() {
-    const container = document.getElementById('app');
-    if (!container) return;
+    const root = document.getElementById('root');
+    if (!root) return;
     let html = '';
-    switch(currentScreen) {
-      case 'splash': html = splashScreen(); break;
-      case 'login': html = loginScreen(); break;
-      case 'otp': html = otpScreen(); break;
-      case 'profile': html = profileScreen(); break;
-      case 'role': html = roleScreen(); break;
-      case 'customer': html = customerDashboard(); break;
-      case 'rider': html = riderDashboard(); break;
-      case 'vendor': html = vendorDashboard(); break;
-      case 'fleet': html = fleetDashboard(); break;
-      case 'admin': html = adminDashboard(); break;
-      case 'tracking': html = trackingScreen(); break;
-      default: html = splashScreen();
-    }
-    container.innerHTML = html;
-    attachEventListeners();
+    if (currentScreen === 'splash') html = splashScreen();
+    else if (currentScreen === 'login') html = loginScreen();
+    else if (currentScreen === 'otp') html = otpScreen();
+    else if (currentScreen === 'profile') html = profileScreen();
+    else if (currentScreen === 'role') html = roleScreen();
+    else if (currentScreen === 'customer') html = customerDashboard();
+    else if (currentScreen === 'rider') html = riderDashboard();
+    else if (currentScreen === 'vendor') html = vendorDashboard();
+    else if (currentScreen === 'fleet') html = fleetDashboard();
+    else if (currentScreen === 'admin') html = adminDashboard();
+    else if (currentScreen === 'tracking') html = trackingScreen();
+    else html = splashScreen();
+    root.innerHTML = html;
+    attachGlobalListeners();
     if (currentScreen === 'admin') initAdminChart();
-    if (currentScreen === 'vendor') initVendorChart();
+    if (currentScreen === 'vendor' && getUser()?.role === 'VENDOR') initVendorChart();
     if (currentScreen === 'tracking') initTrackingMap();
   }
 
-  // ----- SCREENS (pure HTML/CSS) -----
-  function splashScreen() {
-    return `<div class="h-full flex flex-col items-center justify-center bg-gradient-to-b from-[#0F0F13] to-black">
-      <div class="animate-bounce text-7xl mb-4">🛵✨</div>
-      <h1 class="text-4xl font-black text-gradient">Delivery Rider Pro</h1>
-      <p class="text-gray-400 mt-2 text-sm">Kenya • M-PESA Ready</p>
-      <div class="absolute bottom-12 w-12 h-12 rounded-full glass-card flex items-center justify-center animate-pulse"><i class="fas fa-motorcycle text-orange-500 text-xl"></i></div>
-    </div>`;
-  }
-  function loginScreen() {
-    return `<div class="h-full flex items-center justify-center p-6"><div class="glass-card w-full p-8 rounded-3xl">
-      <div class="flex justify-center mb-4"><i class="fas fa-rocket text-5xl text-orange-500"></i></div>
-      <h2 class="text-2xl font-bold text-center">Welcome! Let's gooo!!</h2>
-      <p class="text-gray-400 text-center text-sm mt-1">Please login to explore the app</p>
-      <div class="mt-6 bg-black/40 rounded-2xl p-1 border border-white/10 flex items-center"><i class="fas fa-phone-alt ml-3 text-orange-400"></i><input id="phoneInput" class="bg-transparent p-3 w-full outline-none text-white" placeholder="Mobile Number" value="${appState.phone}"></div>
-      <button id="sendOtpBtn" class="btn-primary w-full mt-6 text-white font-bold py-3 rounded-2xl">Send OTP</button>
-      <p class="text-center text-gray-400 text-sm mt-4">New user? Register here</p>
-    </div></div>`;
-  }
-  function otpScreen() {
-    return `<div class="h-full flex items-center justify-center p-6"><div class="glass-card w-full p-8">
-      <h2 class="text-2xl font-bold">OTP Verification</h2>
-      <p class="text-gray-400 text-sm mt-1">Enter code sent to ${appState.phone}</p>
-      <div class="flex justify-between gap-2 my-6" id="otpContainer">${Array(6).fill(0).map((_,i)=>`<input type="text" maxlength="1" class="otp-digit w-12 h-14 text-center text-2xl bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 outline-none" data-idx="${i}">`).join('')}</div>
-      <button id="verifyOtpBtn" class="btn-primary w-full py-3 rounded-2xl">Verify & Continue</button>
-      <p class="text-center text-gray-400 text-sm mt-4">Resend OTP in 30 sec</p>
-    </div></div>`;
-  }
-  function profileScreen() {
-    return `<div class="h-full flex items-center justify-center p-6"><div class="glass-card w-full p-8">
-      <h2 class="text-2xl font-bold">Almost there ✨</h2>
-      <p class="text-gray-400">Tell us your name</p>
-      <input id="profileName" class="w-full mt-4 bg-black/50 border border-white/20 rounded-xl p-3 text-white" placeholder="e.g. James Mwangi" value="${appState.name}">
-      <button id="profileContinueBtn" class="btn-primary w-full mt-6 py-3 rounded-2xl">Continue</button>
-    </div></div>`;
-  }
-  function roleScreen() {
-    const roles = [
-      { id: 'CUSTOMER', label: 'Customer', icon: 'fa-bag-shopping', desc: 'Order delivery' },
-      { id: 'RIDER', label: 'Rider', icon: 'fa-motorcycle', desc: 'Earn delivering' },
-      { id: 'VENDOR', label: 'Vendor', icon: 'fa-store', desc: 'Manage products' },
-      { id: 'FLEET_MANAGER', label: 'Fleet Manager', icon: 'fa-truck-fast', desc: 'Manage fleet' },
-      { id: 'ADMIN', label: 'Admin', icon: 'fa-chart-line', desc: 'Super analytics' }
-    ];
-    return `<div class="h-full overflow-auto p-6"><h2 class="text-3xl font-bold text-center mt-4">Choose your role</h2><div class="grid gap-4 mt-8">${roles.map(r=>`<button data-role="${r.id}" class="role-btn glass-card flex items-center gap-4 w-full p-5 text-left hover:border-orange-500 transition-all"><i class="fas ${r.icon} text-3xl text-orange-500"></i><div><div class="font-bold text-xl">${r.label}</div><div class="text-gray-400 text-sm">${r.desc}</div></div></button>`).join('')}</div></div>`;
-  }
+  // ----- UI Screens (Premium) -----
+  function splashScreen() { return `<div class="h-[90vh] flex flex-col items-center justify-center bg-gradient-to-b from-[#0F0F13] to-black"><div class="animate-bounce text-7xl mb-4">🛵⚡</div><h1 class="text-5xl font-black text-gradient">SwiftDash</h1><p class="text-gray-400 mt-2">Kenya’s #1 Delivery Suite</p><div class="absolute bottom-12 w-16 h-16 rounded-full glass-card flex items-center justify-center animate-pulse"><i class="fas fa-bolt text-orange-500 text-2xl"></i></div></div>`; }
+  function loginScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8 rounded-3xl"><div class="flex justify-center mb-4"><i class="fas fa-mobile-alt text-5xl text-orange-500"></i></div><h2 class="text-3xl font-bold text-center">Welcome Back</h2><p class="text-gray-400 text-center">Login with your phone</p><div class="mt-6 bg-black/40 rounded-2xl border border-white/10 flex items-center"><i class="fas fa-phone-alt ml-3 text-orange-400"></i><input id="phoneInput" class="bg-transparent p-3 w-full outline-none text-white" placeholder="+254 XXX XXX XXX" value="+254712345678"></div><button id="sendOtpBtn" class="btn-primary w-full mt-6 text-white font-bold py-3 rounded-2xl">Send OTP</button><p class="text-center text-gray-400 text-sm mt-4">New? Register with same OTP flow</p></div></div>`; }
+  function otpScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8"><h2 class="text-2xl font-bold">OTP Code</h2><p class="text-gray-400">Enter 6-digit code sent to <span class="text-orange-400">${document.getElementById('phoneInput')?.value || '+254712345678'}</span></p><div class="flex justify-between gap-2 my-6" id="otpContainer">${Array(6).fill(0).map((_,i)=>`<input type="text" maxlength="1" class="otp-digit w-12 h-14 text-center text-2xl bg-white/10 border border-white/20 rounded-xl focus:border-orange-500 outline-none" data-idx="${i}">`).join('')}</div><button id="verifyOtpBtn" class="btn-primary w-full py-3 rounded-2xl">Verify & Continue</button><p class="text-center text-gray-400 text-sm mt-3">Demo OTP: 123456</p></div></div>`; }
+  function profileScreen() { return `<div class="flex items-center justify-center min-h-[600px] p-6"><div class="glass-card w-full max-w-md p-8"><h2 class="text-2xl font-bold">✨ Almost there</h2><p class="text-gray-400">What should we call you?</p><input id="profileName" class="w-full mt-4 bg-black/50 border border-white/20 rounded-xl p-3 text-white" placeholder="Full name" value=""><button id="profileContinueBtn" class="btn-primary w-full mt-6 py-3 rounded-2xl">Continue</button></div></div>`; }
+  function roleScreen() { const roles = [{ id: 'CUSTOMER', icon: 'fa-bag-shopping', label: 'Customer', desc: 'Order food & parcels' },{ id: 'RIDER', icon: 'fa-motorcycle', label: 'Rider', desc: 'Earn per delivery' },{ id: 'VENDOR', icon: 'fa-store', label: 'Vendor', desc: 'Manage store' },{ id: 'FLEET_MANAGER', icon: 'fa-truck-fast', label: 'Fleet Manager', desc: 'Oversee fleet' },{ id: 'ADMIN', icon: 'fa-chart-line', label: 'Admin', desc: 'Analytics & control' }]; return `<div class="p-6"><h2 class="text-3xl font-bold text-center mt-2">Select your role</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 max-w-4xl mx-auto">${roles.map(r=>`<button data-role="${r.id}" class="role-btn glass-card flex items-center gap-4 w-full p-5 hover:border-orange-500 transition-all"><i class="fas ${r.icon} text-3xl text-orange-500"></i><div><div class="font-bold text-xl">${r.label}</div><div class="text-gray-400 text-sm">${r.desc}</div></div></button>`).join('')}</div></div>`; }
+
+  // ================= DASHBOARDS ULTRA PRO =================
   function customerDashboard() {
-    return `<div class="flex flex-col h-full"><div class="p-5 pb-2"><div class="flex justify-between items-center"><h1 class="text-2xl font-bold">Hey, ${appState.name || 'Guest'}</h1><i class="fas fa-bell text-orange-400 text-xl"></i></div></div>
-    <div class="scrollable flex-1 px-5 space-y-4"><div class="glass-card p-5 flex items-center gap-4"><i class="fas fa-motorcycle text-4xl text-orange-500"></i><div><p class="text-sm">Express Delivery</p><p class="font-bold">Order now & get 20% off</p></div><button id="newOrderBtn" class="ml-auto btn-primary px-4 py-2 rounded-full text-sm">Order</button></div>
-    <div><h3 class="font-semibold mb-2">Recent Orders</h3>${appState.orders.map(o=>`<div class="glass-card p-3 mt-2 flex justify-between"><div><p class="font-medium">${o.vendor}</p><p class="text-xs text-gray-400">${o.status === 'in_transit' ? `ETA ${o.eta}` : 'Delivered'}</p></div><span class="text-orange-400 font-semibold">KES ${o.total}</span></div>`).join('')}</div>
-    <div class="glass-card p-4"><div class="flex justify-between"><span>💰 Wallet Balance</span><span class="text-xl font-bold">KES ${appState.walletBalance}</span></div><button id="topupWalletBtn" class="mt-2 text-orange-400 text-sm">Top Up via M-PESA</button></div>
-    <button id="logoutCustomerBtn" class="bg-white/10 py-3 rounded-full w-full my-4">Logout</button></div>
-    <div class="bottom-nav py-3 flex justify-around"><i class="fas fa-home text-orange-500 text-xl"></i><i class="fas fa-bolt text-gray-400 text-xl"></i><i class="fas fa-map text-gray-400 text-xl"></i><i class="fas fa-user text-gray-400 text-xl"></i></div></div>`;
+    const user = getUser();
+    const myOrders = appState.orders.filter(o => o.customerPhone === user?.phone).slice(0,5);
+    return `<div class="dashboard-grid"><div class="glass-card m-4 p-5 hidden lg:block"><div class="text-center"><i class="fas fa-user-circle text-6xl text-orange-400"></i><h3 class="text-xl font-bold mt-2">${user?.name}</h3><p class="text-gray-400">${user?.phone}</p><button id="logoutMainBtn" class="mt-4 bg-white/10 px-4 py-2 rounded-full w-full">Logout</button></div></div><div class="p-5"><div class="flex justify-between items-center"><h1 class="text-3xl font-bold text-gradient">Hey, ${user?.name?.split(' ')[0] || 'Customer'}!</h1><i class="fas fa-bell text-orange-400 text-xl"></i></div><div class="grid md:grid-cols-2 gap-4 mt-4"><div class="glass-card p-5"><i class="fas fa-wallet text-2xl"></i><p class="text-sm">Wallet</p><p class="text-2xl font-bold">KES ${user?.wallet?.toLocaleString()}</p><button id="topupWalletBtn" class="text-orange-400 text-sm mt-2"><i class="fas fa-mobile-alt"></i> M-PESA TopUp</button></div><div class="glass-card p-5"><i class="fas fa-truck-fast text-2xl"></i><p class="text-sm">Active deliveries</p><p class="text-2xl font-bold">${appState.orders.filter(o=>o.customerPhone===user?.phone && o.status==='in_transit').length}</p><button id="newOrderBtn" class="btn-primary text-sm px-4 py-1 rounded-full mt-2">+ New Order</button></div></div><div class="glass-card p-5 mt-4"><h3 class="font-bold text-xl">📦 Recent Orders</h3>${myOrders.length ? myOrders.map(o=>`<div class="flex justify-between items-center border-b border-white/10 py-2"><div><p class="font-medium">${o.vendorName}</p><p class="text-xs text-gray-400">${o.status === 'in_transit' ? `🚚 ETA ${o.eta}` : '✅ Delivered'}</p></div><span class="text-orange-400 font-bold">KES ${o.total}</span></div>`).join('') : '<p class="text-gray-400 text-center py-4">No orders yet. Tap "New Order"</p>'}</div><button id="logoutCustomerBtn" class="lg:hidden bg-white/10 py-3 rounded-full w-full mt-4">Logout</button></div></div>`;
   }
   function riderDashboard() {
-    const s = appState.riderStats;
-    const online = appState.riderOnline;
-    return `<div class="flex flex-col h-full"><div class="relative h-52 bg-gradient-to-b from-[#0F0F13] to-[#1A1A24]"><img src="https://cdn-icons-png.flaticon.com/512/3021/3021567.png" class="absolute bottom-0 left-1/2 transform -translate-x-1/2 h-32 object-contain"><button id="riderOnlineToggle" class="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold ${online ? 'bg-green-500' : 'bg-gray-600'}">${online ? '● Online' : '○ Offline'}</button></div>
-    <div class="scrollable flex-1 px-5 space-y-4 pt-4"><div class="flex justify-between gap-3"><div class="stat-card bg-[#1A1A1A] p-3 rounded-2xl text-center flex-1"><i class="fas fa-battery-full text-orange-400 text-xl"></i><p class="text-xl font-bold">${s.battery}%</p><p class="text-xs">Battery</p></div><div class="stat-card bg-[#1A1A1A] p-3 rounded-2xl text-center flex-1"><i class="fas fa-heartbeat text-orange-400"></i><p class="text-xl font-bold">${s.engineHealth}%</p><p class="text-xs">Health</p></div><div class="stat-card bg-[#1A1A1A] p-3 rounded-2xl text-center flex-1"><i class="fas fa-road"></i><p class="text-xl font-bold">${s.rangeKm}km</p><p class="text-xs">Range</p></div></div>
-    <div class="glass-card p-4"><div class="flex justify-between"><h3 class="font-bold">Today's Earnings</h3><span class="text-2xl font-bold text-gradient">KES ${s.todayEarnings}</span></div><div class="h-2 bg-gray-700 rounded-full mt-2"><div class="w-3/4 h-2 rounded-full bg-orange-500"></div></div><div class="flex justify-between mt-3 text-gray-300 text-sm"><span>⭐ ${s.rating}</span><span>🏍️ ${s.deliveriesToday} del</span><span>📦 Perf: ${s.performance}%</span></div></div>
-    <div class="glass-card p-4"><h3 class="font-bold">Recent Deliveries</h3><div class="space-y-2 mt-2"><div class="flex justify-between"><span>Navi Sangvi → Kalewadi</span><span class="text-orange-400">KES 210</span></div><div class="flex justify-between"><span>Westlands → CBD</span><span class="text-orange-400">KES 350</span></div></div></div>
-    <button id="acceptOrderBtn" class="btn-primary w-full py-3 rounded-2xl font-bold">Accept New Order <i class="fas fa-arrow-right ml-2"></i></button>
-    <button id="logoutRiderBtn" class="bg-white/10 py-3 rounded-full w-full mb-6">Logout</button></div></div>`;
+    const user = getUser();
+    const stats = user?.riderStats || { battery: 96, engineHealth: 91, rangeKm: 65, todayEarnings: 3250, deliveriesToday: 8, rating: 4.92, performance: 93 };
+    const online = user?.riderOnline !== undefined ? user.riderOnline : true;
+    const incomingOrders = appState.orders.filter(o => o.status === 'pending' && !o.riderPhone);
+    return `<div class="p-5"><div class="glass-card p-5 relative"><div class="flex justify-between"><h2 class="text-2xl font-bold">🏍️ ${user?.name}</h2><button id="riderOnlineToggle" class="px-4 py-1 rounded-full text-sm font-bold ${online ? 'bg-green-500' : 'bg-gray-600'}">${online ? '● Online' : '○ Offline'}</button></div><div class="grid grid-cols-3 gap-3 mt-4"><div><i class="fas fa-battery-full"></i><p class="text-lg font-bold">${stats.battery}%</p><p class="text-xs">Battery</p></div><div><i class="fas fa-heartbeat"></i><p class="text-lg">${stats.engineHealth}%</p></div><div><i class="fas fa-road"></i><p>${stats.rangeKm} km</p></div></div><div class="glass-card mt-3 p-3"><div class="flex justify-between"><span>Today's earnings</span><span class="text-2xl text-gradient">KES ${stats.todayEarnings}</span></div><div class="flex justify-between text-sm"><span>⭐ ${stats.rating}</span><span>📦 ${stats.deliveriesToday} deliveries</span></div></div><h3 class="font-bold mt-4">📋 Available orders</h3><div id="incomingOrdersList" class="space-y-2 mt-2 max-h-52 overflow-auto">${incomingOrders.length ? incomingOrders.map(o=>`<div class="bg-white/5 p-3 rounded-xl flex justify-between items-center"><div><p class="font-bold">${o.vendorName}</p><p class="text-xs">KES ${o.total}</p></div><button data-order-id="${o.id}" class="acceptOrderBtn bg-orange-500 text-xs px-3 py-1 rounded-full">Accept</button></div>`).join('') : '<p class="text-gray-400 text-center">No pending orders</p>'}</div><button id="logoutRiderBtn" class="bg-white/10 py-2 rounded-full w-full mt-4">Logout</button></div></div>`;
   }
   function vendorDashboard() {
-    return `<div class="h-full overflow-auto p-5"><div class="glass-card p-5"><h2 class="text-2xl font-bold">Vendor Hub: Mama's Kitchen</h2><div class="grid grid-cols-2 gap-3 mt-4"><div class="bg-white/10 p-3 rounded-xl">🍔 Burgers <span class="float-right">24 sold</span></div><div class="bg-white/10 p-3 rounded-xl">🥤 Sodas <span class="float-right">48 sold</span></div></div><canvas id="vendorChart" height="120"></canvas><button id="logoutVendorBtn" class="bg-white/10 py-2 rounded-full w-full mt-5">Logout</button></div></div>`;
+    const user = getUser();
+    const myProducts = appState.products.filter(p => p.vendorPhone === user?.phone);
+    const vendorOrders = appState.orders.filter(o => o.vendorId === user?.phone);
+    return `<div class="p-5"><div class="glass-card p-5"><h2 class="text-2xl font-bold">🍲 ${user?.name}'s Hub</h2><div class="grid md:grid-cols-2 gap-4 mt-4"><div><h3>📦 Your Products</h3><ul id="productList" class="space-y-2">${myProducts.map(p=>`<li class="flex justify-between"><span>${p.name} - KES ${p.price}</span><button data-prod="${p.id}" class="delProductBtn text-red-400 text-xs">🗑️</button></li>`).join('')}</ul><div class="flex gap-2 mt-3"><input id="newProdName" placeholder="Product" class="bg-black/40 p-2 rounded text-sm"><input id="newProdPrice" placeholder="Price" class="bg-black/40 p-2 rounded text-sm w-20"><button id="addProductBtn" class="btn-primary text-sm px-3 py-1">Add</button></div></div><div><h3>📝 Store Orders</h3>${vendorOrders.map(o=>`<div class="bg-white/5 p-2 rounded mt-1"><span>Order #${o.id} - ${o.items}</span><span class="float-right">${o.status}</span></div>`).join('')}</div></div><button id="logoutVendorBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
   }
   function fleetDashboard() {
-    return `<div class="h-full overflow-auto p-5"><div class="glass-card p-5"><h2>⚡ Fleet Command</h2><div class="flex justify-between mt-3"><span><i class="fas fa-charging-station"></i> 12 Vehicles active</span><span>Maintenance due: 3 EVs</span></div><div class="mt-5 h-32 map-placeholder rounded-xl flex items-center justify-center"><i class="fas fa-map text-orange-300"></i> Live fleet heatmap</div><button id="logoutFleetBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
+    return `<div class="p-5"><div class="glass-card p-5"><h2>⚡ Fleet Command Center</h2><div class="grid grid-cols-2 gap-3 mt-4"><div class="bg-orange-500/10 p-3 rounded"><i class="fas fa-motorcycle"></i> Active Riders: 14</div><div class="bg-orange-500/10 p-3 rounded"><i class="fas fa-charging-station"></i> EVs Active: 8</div></div><div class="mt-4"><h3>Vehicles Status</h3>${appState.vehicles.map(v=>`<div class="flex justify-between"><span>${v.name}</span><span class="${v.status==='active'?'text-green-400':'text-red-400'}">${v.status}</span></div>`).join('')}</div><button id="logoutFleetBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
   }
   function adminDashboard() {
-    return `<div class="h-full overflow-auto p-5"><h1 class="text-3xl font-bold text-gradient">Admin Cortex</h1><div class="glass-card mt-4 p-3"><canvas id="revenueChart" height="140"></canvas></div><div class="grid grid-cols-2 gap-3 mt-4"><div class="glass-card text-center p-3"><p>Active Riders</p><p class="text-2xl font-bold">48</p></div><div class="glass-card text-center p-3"><p>Avg Delivery</p><p class="text-2xl font-bold">18 min</p></div></div><button id="logoutAdminBtn" class="bg-white/10 py-3 rounded-full w-full mt-5">Logout</button></div>`;
+    const totalRev = appState.orders.reduce((acc,o)=> o.status==='delivered' ? acc+o.total : acc, 0);
+    const activeRiders = appState.users.filter(u=>u.role==='RIDER' && u.riderOnline).length;
+    return `<div class="p-5"><div class="glass-card p-5"><h1 class="text-3xl font-bold text-gradient">📊 Admin Cortex</h1><div class="grid md:grid-cols-3 gap-3 mt-4"><div class="bg-black/30 p-4 rounded-2xl"><p>Total Revenue</p><p class="text-2xl font-bold">KES ${totalRev.toLocaleString()}</p></div><div class="bg-black/30 p-4 rounded-2xl"><p>Active Riders</p><p class="text-2xl font-bold">${activeRiders}</p></div><div class="bg-black/30 p-4 rounded-2xl"><p>Total Orders</p><p class="text-2xl">${appState.orders.length}</p></div></div><canvas id="revenueChart" height="140" class="mt-4"></canvas><button id="logoutAdminBtn" class="bg-white/10 py-2 rounded-full w-full mt-6">Logout</button></div></div>`;
   }
   function trackingScreen() {
-    return `<div class="flex flex-col h-full relative"><div id="trackingMapDiv" class="flex-1" style="min-height: 65%;"></div><div class="glass-card m-4 p-4 flex justify-between items-center"><div><p class="text-sm">Rider is arriving</p><p class="text-2xl font-bold" id="etaLabel">3 min</p></div><button id="chatBtn" class="bg-orange-500 px-5 py-2 rounded-full"><i class="fas fa-comment-dots"></i> Chat</button></div><button id="backFromTracking" class="absolute top-4 left-4 bg-black/50 p-2 rounded-full backdrop-blur"><i class="fas fa-arrow-left"></i></button></div>`;
+    return `<div class="relative h-[85vh] flex flex-col"><div id="trackingMapDiv" class="flex-1 w-full" style="min-height: 65%;"></div><div class="glass-card m-4 p-4 flex justify-between"><div><p class="text-sm">🍔 Your rider is on the way</p><p class="text-2xl font-bold" id="etaLabel">4 min</p></div><button id="chatBtn" class="bg-orange-500 px-5 py-2 rounded-full"><i class="fas fa-comment"></i> Chat</button></div><button id="backFromTracking" class="absolute top-4 left-4 bg-black/60 p-2 rounded-full backdrop-blur"><i class="fas fa-arrow-left"></i> Back</button></div>`;
   }
 
-  // ----- Charts and Map -----
-  function initAdminChart() {
-    const canvas = document.getElementById('revenueChart');
-    if (!canvas) return;
-    if (activeChart) activeChart.destroy();
-    const ctx = canvas.getContext('2d');
-    activeChart = new Chart(ctx, {
-      type: 'line', data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label: 'Revenue (KES)', data: [12500,18900,14200,21000,27800,34200,41000], borderColor: '#FF5A1E', borderWidth: 2, fill: false, tension: 0.3 }] },
-      options: { responsive: true, maintainAspectRatio: true }
-    });
-  }
-  function initVendorChart() {
-    const canvas = document.getElementById('vendorChart');
-    if (!canvas) return;
-    if (activeChart) activeChart.destroy();
-    const ctx = canvas.getContext('2d');
-    activeChart = new Chart(ctx, {
-      type: 'bar', data: { labels: ['Week 1','Week 2','Week 3'], datasets: [{ label: 'Sales (KES)', data: [32400, 45200, 38700], backgroundColor: '#FF5A1E' }] }
-    });
-  }
+  // Charts & Map
+  function initAdminChart() { const canvas = document.getElementById('revenueChart'); if(!canvas)return; if(activeChart)activeChart.destroy(); const ctx = canvas.getContext('2d'); activeChart = new Chart(ctx,{type:'line', data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat'], datasets:[{label:'Revenue (KES)', data:[14500,21200,18900,27300,34200,41900], borderColor:'#FF5A1E',borderWidth:3}]}, options:{responsive:true}}); }
+  function initVendorChart() { const canvas = document.getElementById('vendorChart'); if(!canvas)return; if(activeChart)activeChart.destroy(); const ctx = canvas.getContext('2d'); activeChart = new Chart(ctx,{type:'bar', data:{labels:['Week1','Week2','Week3'], datasets:[{label:'Sales (KES)', data:[43200,52100,48900], backgroundColor:'#FF5A1E'}]}}); }
   function initTrackingMap() {
-    const mapDiv = document.getElementById('trackingMapDiv');
-    if (!mapDiv) return;
-    if (mapTrack) { mapTrack.remove(); mapTrack = null; }
-    mapTrack = L.map(mapDiv).setView([-1.2921, 36.8219], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(mapTrack);
-    const iconHtml = L.divIcon({ html: '<div class="bg-orange-500 w-5 h-5 rounded-full animate-pulse shadow-lg"></div>', iconSize: [20,20] });
-    trackMarker = L.marker([-1.2921, 36.8219], { icon: iconHtml }).addTo(mapTrack);
-    let lat = -1.2921, lng = 36.8219;
-    if (trackInterval) clearInterval(trackInterval);
-    trackInterval = setInterval(() => {
-      lat += 0.0018; lng += 0.0025;
-      trackMarker.setLatLng([lat, lng]);
-      mapTrack.panTo([lat, lng]);
-      const etaElem = document.getElementById('etaLabel');
-      if (etaElem) etaElem.innerText = `${Math.floor(Math.random() * 5 + 2)} min`;
-    }, 2500);
+    const mapDiv = document.getElementById('trackingMapDiv'); if(!mapDiv) return; if(mapTrack) mapTrack.remove();
+    mapTrack = L.map(mapDiv).setView([-1.2921, 36.8219], 13); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap'}).addTo(mapTrack);
+    const customIcon = L.divIcon({html:'<div class="bg-orange-500 w-6 h-6 rounded-full animate-pulse shadow-lg border-2 border-white"></div>', iconSize:[24,24]});
+    trackMarker = L.marker([-1.2921,36.8219],{icon:customIcon}).addTo(mapTrack);
+    let lat=-1.2921, lng=36.8219; if(trackInterval) clearInterval(trackInterval);
+    trackInterval = setInterval(()=>{ lat+=0.0015; lng+=0.002; trackMarker.setLatLng([lat,lng]); mapTrack.panTo([lat,lng]); const eta=document.getElementById('etaLabel'); if(eta) eta.innerText = `${Math.floor(Math.random()*4+2)} min`; }, 2300);
   }
 
-  // ----- Event binding (after each render) -----
-  function attachEventListeners() {
-    // Login -> OTP
-    document.getElementById('sendOtpBtn')?.addEventListener('click', () => { currentScreen = 'otp'; render(); });
-    document.getElementById('verifyOtpBtn')?.addEventListener('click', () => {
-      let code = '';
-      document.querySelectorAll('.otp-digit').forEach(inp => code += inp.value);
-      if (code === '888888') { currentScreen = 'profile'; render(); }
-      else alert('Demo OTP: 888888');
-    });
-    document.getElementById('profileContinueBtn')?.addEventListener('click', () => {
-      const nameInput = document.getElementById('profileName');
-      if (nameInput && nameInput.value.trim()) appState.name = nameInput.value.trim();
-      currentScreen = 'role'; render();
-    });
-    // Role selection
-    document.querySelectorAll('.role-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const role = btn.getAttribute('data-role');
-        appState.role = role;
-        if (role === 'CUSTOMER') currentScreen = 'customer';
-        else if (role === 'RIDER') currentScreen = 'rider';
-        else if (role === 'VENDOR') currentScreen = 'vendor';
-        else if (role === 'FLEET_MANAGER') currentScreen = 'fleet';
-        else if (role === 'ADMIN') currentScreen = 'admin';
-        else currentScreen = 'customer';
-        render();
-      });
-    });
-    // Rider toggle
-    document.getElementById('riderOnlineToggle')?.addEventListener('click', () => { appState.riderOnline = !appState.riderOnline; render(); });
-    document.getElementById('acceptOrderBtn')?.addEventListener('click', () => { alert('✅ New delivery assigned! Navigate to pickup point.'); });
-    document.getElementById('newOrderBtn')?.addEventListener('click', () => { currentScreen = 'tracking'; render(); });
-    document.getElementById('topupWalletBtn')?.addEventListener('click', () => { 
-      alert('💸 M-PESA STK Push sent to your phone. Simulating +500 KES');
-      appState.walletBalance += 500; render();
-    });
-    // Logout all
-    const logoutBtns = ['logoutBtn', 'logoutCustomerBtn', 'logoutRiderBtn', 'logoutVendorBtn', 'logoutFleetBtn', 'logoutAdminBtn'];
-    logoutBtns.forEach(id => {
-      document.getElementById(id)?.addEventListener('click', () => {
-        cleanupTracking();
-        appState.role = null; appState.name = ''; appState.walletBalance = 3450;
-        currentScreen = 'login'; render();
-      });
-    });
-    document.getElementById('backFromTracking')?.addEventListener('click', () => {
-      cleanupTracking();
-      currentScreen = 'customer'; render();
-    });
-    document.getElementById('chatBtn')?.addEventListener('click', () => alert('💬 Live chat with rider (demo)'));
+  // ---------- GLOBAL EVENT BINDING (ultra robust) ----------
+  function attachGlobalListeners() {
+    // Login / OTP
+    document.getElementById('sendOtpBtn')?.addEventListener('click', () => { const phone = document.getElementById('phoneInput')?.value.trim(); if(phone) { window.tempPhone = phone; currentScreen='otp'; render(); } else showToast('Enter phone number',true); });
+    document.getElementById('verifyOtpBtn')?.addEventListener('click', () => { let code = ''; document.querySelectorAll('.otp-digit').forEach(inp=>code+=inp.value); if(code==='123456') { let phone = window.tempPhone; let existing = appState.users.find(u=>u.phone===phone); if(existing) { setActiveUser(existing); currentScreen = existing.role.toLowerCase(); render(); showToast(`Welcome back ${existing.name}`); } else { window.pendingPhone = phone; currentScreen='profile'; render(); } } else showToast('Invalid OTP (123456)',true); });
+    document.getElementById('profileContinueBtn')?.addEventListener('click', () => { const name = document.getElementById('profileName')?.value.trim(); if(name && window.pendingPhone) { const newUser = { phone: window.pendingPhone, name, role: null, wallet: 2000, avatar: '👤', riderStats: null, vendorProducts: null }; appState.users.push(newUser); setActiveUser(newUser); persistState(); currentScreen='role'; render(); } else showToast('Enter your name',true); });
+    document.querySelectorAll('.role-btn').forEach(btn=>btn.addEventListener('click',(e)=>{ const role = btn.getAttribute('data-role'); const user = getUser(); if(user) { user.role = role; if(role==='RIDER') user.riderStats = { battery:100, engineHealth:95, rangeKm:70, todayEarnings:0, deliveriesToday:0, rating:5, performance:100 }; if(role==='VENDOR') user.vendorProducts = []; updateUser(user); setActiveUser(user); currentScreen = role.toLowerCase(); render(); showToast(`🎉 ${role} dashboard activated`); } }));
+    // Top-up / new order / rider toggle etc.
+    document.getElementById('topupWalletBtn')?.addEventListener('click',()=>{ const u=getUser(); if(u){ u.wallet += 500; updateUser(u); setActiveUser(u); render(); showToast('+500 KES added (M-PESA)'); } });
+    document.getElementById('newOrderBtn')?.addEventListener('click',()=>{ showToast('New order created! Rider assigned.'); const newOrder = { id: appState.nextOrderId++, customerPhone: getUser().phone, vendorId: '+254700123456', vendorName: 'Mama Jane', items: 'Nyama Choma + Chips', total: 550, status: 'pending', riderPhone: null, eta: null, createdAt: Date.now() }; appState.orders.push(newOrder); persistState(); render(); });
+    document.getElementById('riderOnlineToggle')?.addEventListener('click',()=>{ const u=getUser(); if(u?.role==='RIDER'){ u.riderOnline = !u.riderOnline; updateUser(u); setActiveUser(u); render(); showToast(u.riderOnline ? 'Online, ready for orders' : 'Offline mode'); } });
+    // accept order logic
+    document.querySelectorAll('.acceptOrderBtn').forEach(btn=>{ btn.addEventListener('click',(e)=>{ const orderId = parseInt(btn.getAttribute('data-order-id')); const order = appState.orders.find(o=>o.id===orderId); if(order && getUser().role==='RIDER'){ order.status = 'in_transit'; order.riderPhone = getUser().phone; order.eta = '12 min'; const riderStats = getUser().riderStats; if(riderStats){ riderStats.todayEarnings += order.total; riderStats.deliveriesToday += 1; updateUser(getUser()); } persistState(); render(); showToast(`Order #${orderId} accepted! Navigate to vendor.`); } }); });
+    // product management (vendor)
+    document.getElementById('addProductBtn')?.addEventListener('click',()=>{ const name = document.getElementById('newProdName')?.value; const price = parseInt(document.getElementById('newProdPrice')?.value); if(name && price){ const prod = { id: appState.nextProductId++, vendorPhone: getUser().phone, name, price, stock: 10 }; appState.products.push(prod); persistState(); render(); showToast('Product added'); } else showToast('Enter product & price',true); });
+    document.querySelectorAll('.delProductBtn').forEach(btn=>{ btn.addEventListener('click',(e)=>{ const prodId = parseInt(btn.getAttribute('data-prod')); appState.products = appState.products.filter(p=>p.id!==prodId); persistState(); render(); showToast('Product deleted'); }); });
+    // Logout functions
+    const logoutArr = ['logoutMainBtn','logoutCustomerBtn','logoutRiderBtn','logoutVendorBtn','logoutFleetBtn','logoutAdminBtn'];
+    logoutArr.forEach(id=>{ document.getElementById(id)?.addEventListener('click',()=>{ cleanupTracking(); appState.activeUser = null; currentScreen='login'; render(); showToast('Logged out successfully'); }); });
+    document.getElementById('backFromTracking')?.addEventListener('click',()=>{ cleanupTracking(); currentScreen='customer'; render(); });
+    document.getElementById('chatBtn')?.addEventListener('click',()=>showToast('💬 Live chat with rider (instant support)'));
   }
 
-  // start app
-  setTimeout(() => { if (currentScreen === 'splash') { currentScreen = 'login'; render(); } }, 2000);
+  // Bootstrap
+  loadPersistedState();
+  if (appState.activeUser) { currentScreen = appState.activeUser.role.toLowerCase(); } else { currentScreen = 'splash'; setTimeout(()=>{ if(currentScreen==='splash'){ currentScreen='login'; render(); } }, 2000); }
   render();
 </script>
 </body>
